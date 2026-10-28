@@ -380,15 +380,18 @@ function sorghum(x,y,s,wilt){const lean=wilt*.9,col=wilt>.5?'#b89a5a':'#5f9a4e';
   const tx=6*s*lean*6,ty=-48*s*(1-wilt*.3);oval(tx,ty-4*s,5*s,9*s,wilt>.5?'#9a7a4a':'#b5523f',{shadow:false,n:10});oval(-6*s,-22*s,8*s,2.5*s,col,{shadow:false,n:8});oval(7*s,-30*s,8*s,2.5*s,col,{shadow:false,n:8});g.restore()}
 
 /* WEEK 2 — THE STONE CITY: Great Zimbabwe */
-let courses=0,courseT=[],site=new Set(),trade=new Set(),birdOn=0,birdT=0,flip=0,flipA=0,nameT=-1;
-window.reset=()=>{LB.t=0;courses=0;courseT=[];site=new Set();trade=new Set();birdOn=0;flip=0;flipA=0;nameT=-1};
-const SITE=[{ic:'⛰️',k:'The oldest part',h:'The Hill Complex',p:'On a granite hill, walls weave between giant boulders. This was the oldest part of the city, probably where the king and important religious leaders lived.',x:200,y:200,sz:90},
+let debate=new Set(),courses=0,courseT=[],site=new Set(),trade=new Set(),birdOn=0,birdT=0,flip=0,flipA=0,nameT=-1;
+window.reset=()=>{LB.t=0;debate=new Set();courses=0;courseT=[];site=new Set();trade=new Set();birdOn=0;flip=0;flipA=0;nameT=-1};
+const SITE=[{ic:'⛰️',k:'An early part of the city',h:'The Hill Complex',p:'On a granite hill, walls weave between giant boulders. It is one of the oldest parts of the city. Many archaeologists think leaders and religious figures lived here, but experts still debate how each part of the city was used.',x:200,y:200,sz:90},
  {ic:'🧱',k:'A giant oval wall',h:'The Great Enclosure',p:'Its outer wall is about 250 metres around and up to <b>11 metres tall</b>, made of around a million granite blocks. It is the largest ancient stone structure south of the Sahara.',x:440,y:345,sz:100},
  {ic:'🗼',k:'A mystery',h:'The Conical Tower',p:'A solid stone tower about 10 metres high stands inside the Great Enclosure. Nobody knows for sure what it meant. Some think it was a symbol of plenty, like a grain store.',x:578,y:232,sz:56}];
 const GOODS=[{l:'✨ Gold',ic:'✨',k:'Sent to the coast',h:'Gold',p:'Gold from the region was carried to trading towns on the East African coast, then shipped across the Indian Ocean.'},
  {l:'🐘 Ivory',ic:'🐘',k:'Sent to the coast',h:'Ivory',p:'Elephant ivory was another valuable export, carved into objects far away in Arabia, India and beyond.'},
  {l:'🫙 Persian pottery & glass beads',ic:'🫙',k:'Found at Great Zimbabwe',h:'Goods from far away',p:'Archaeologists found glass beads and pottery from Persia and the Middle East at the site.'},
  {l:'🏺 Chinese porcelain',ic:'🏺',k:'Found at Great Zimbabwe',h:'All the way from China',p:'Pieces of Chinese celadon and porcelain show that goods from China reached this inland city hundreds of years ago.'}];
+
+const DEBATE=[{ic:'👑',k:'The older idea',h:'Built on a ruler’s orders',p:'For a long time, many historians pictured all-powerful kings who made people build the walls.',x:215},
+ {ic:'🤝',k:'A newer idea',h:'Communities working together',p:'Some archaeologists notice the walls were built in many styles by different groups, with little sign of armies forcing people. Shona tradition has <b>nhimbe</b>: neighbours joining in for big jobs. There were still leaders, but they ruled with councils.',x:470}];
 
 STEPS=[
  {cap:'This week, Tapiwa’s grandfather <b>Sekuru Josiah</b> tells the story. Open the logbook and listen carefully.',
@@ -398,10 +401,10 @@ STEPS=[
   hint:()=>`Tap the wall to add a layer of stone (${courses} of 7)`,need:()=>courses>=7,
   enter(){if(courses<7){const b=hs(480,300,420,220,'Add a layer of stone',b=>{if(courses<7){courses++;courseT[courses-1]=T}if(courses>=7){b.classList.add('done');side('🧱','Dry-stone walling','No mortar needed','Each layer sits a little further in than the one below, so the wall leans inward and stays strong. The zig-zag “chevron” pattern on top is a Great Zimbabwe design.')}refresh()});b.style.borderRadius='2cqw'}
    else side('🧱','Dry-stone walling','No mortar needed','Each layer sits a little further in than the one below, so the wall leans inward and stays strong. The zig-zag “chevron” pattern on top is a Great Zimbabwe design.')}},
- {cap:'From about <b>1100 to 1450</b>, Great Zimbabwe was the capital of a powerful kingdom, home to thousands of people. Explore the city.',
+ {cap:'From about <b>1100 to 1450</b>, Great Zimbabwe was the biggest of <b>many stone-walled towns</b> across the region, home to thousands of people. Explore the city.',
   hint:()=>`Tap each part of the city (${site.size} of 3)`,need:()=>site.size===3,
   enter(){factSpots(SITE,site,c=>[c.x,c.y])}},
- {cap:'Its kings grew rich through <b>trade</b>. Gold and ivory went out to the coast; treasures from across the Indian Ocean came back. Tap each trade good.',
+ {cap:'Its leaders and people grew rich through <b>trade</b>. Gold and ivory went out to the coast; treasures from across the Indian Ocean came back. Tap each trade good.',
   hint:()=>`Tap each trade good (${trade.size} of 4)`,need:()=>trade.size===4,
   enter(){factChips(GOODS,trade,175,120)}},
  {cap:'Carved soapstone birds were found at Great Zimbabwe. Tap the stone pillar to see one.',
@@ -410,11 +413,14 @@ STEPS=[
  {cap:'For a long time, some colonial-era writers spread a <b>myth</b> about who built Great Zimbabwe. Flip the card to see the truth.',
   hint:'Tap the card to flip it',need:()=>flip===1,
   enter(){const b=hs(480,265,330,220,'Flip the card',b=>{flip=flip?0:1;b.classList.add('done');refresh()},flip?'done':'pulse');b.style.borderRadius='1.5cqw'}},
+ {cap:'<b>Historians still debate</b> how Great Zimbabwe was run. Did people build it because a ruler ordered them to, or by working together? Read both ideas.',
+  hint:()=>`Tap each idea (${debate.size} of 2)`,need:()=>debate.size===2,
+  enter(){DEBATE.forEach((c,i)=>{const b=hs(c.x,245,150,140,c.h,b=>{debate.add(i);b.classList.add('done');side(c.ic,c.k,c.h,c.p);refresh()},debate.has(i)?'done':'pulse');b.style.borderRadius='1.5cqw'})}},
  {cap:'“<b>Dzimba dza mabwe</b>” means “houses of stone” in Shona. When the country became independent in 1980, it took its name from this place.',
   hint:'Tap the stone to reveal the name',need:()=>nameT>0,
   enter(){if(nameT<0){const b=hs(480,330,260,90,'Reveal the name',b=>{nameT=T;b.classList.add('done');refresh()});b.style.borderRadius='1.5cqw'}}},
- {cap:'<b>Wonder question:</b> how could a whole city of stone walls stay standing for centuries without any mortar holding it together?',
-  enter(){bub(700,250,'Sekuru Josiah','Stone on stone, hand on hand. Built by people who knew exactly what they were doing.');bub(300,240,'Tapiwa','He tells this every time… and I still can’t believe it’s true!')}}
+ {cap:'<b>Wonder questions:</b> how could stone walls stay standing for centuries without mortar? And which idea about who built them does the evidence support best?',
+  enter(){bub(700,250,'Sekuru Josiah','Stone on stone, hand on hand. Historians keep finding new clues, so keep asking good questions!');bub(300,240,'Tapiwa','He tells this every time… and I still can’t believe it’s true!')}}
 ];
 const STONE=['#a39e94','#b5afa4','#9a948a','#aea89c','#bdb6aa'];
 function wallScene(dt){
@@ -479,13 +485,21 @@ function mythCard(dt){
   else{txt('✓  TRUTH',0,-72,20,'#3f8f5a','800 ');wtxt('Archaeologists have shown it was built by the ancestors of the Shona people, who live in Zimbabwe today.',0,6,280,21,'#3b2a1c','700 ')}
   g.restore();
 }
+function debateScene(dt){
+  sky('#f6d9a8','#fbeed4');poly(hillPts(380,20,2),'#b6c98c');
+  DEBATE.forEach((c,i)=>{const on=debate.has(i),bob=Math.sin(T*2+i)*3;g.save();g.translate(c.x,245+bob);g.rotate(i?.02:-.02);
+    poly([[-100,-92],[100,-95],[102,92],[-101,94]],on?'#fbf3e2':'#ead9bb',{sb:7});
+    txt(c.ic,0,-46,40,'#000','');txt(c.k.toUpperCase(),0,0,14,'#b8434f','800 ');wtxt(c.h,0,38,180,20,'#3b2a1c','700 ');g.restore()});
+  txt('?',342,250,46,'rgba(59,42,28,.45)','800 ');
+  person(800,440,1.35,{...JOSIAH,mood:'smile',flip:true,ra:1.1});
+}
 function nameScene(dt){
   sky('#9fd2ea','#fbe9c6',330);sun(840,80,26);hill(320,30,1.6,'#b6c98c',{shadow:false});poly(hillPts(380,20,2.4),'#97b86c');
   rect(340,300,280,70,'#a39e94');rect(352,312,256,46,'#b5afa4',{shadow:false});txt('dzimba dza mabwe',480,335,22,'#3b2a1c','700 italic ');
   if(nameT>0){yearTiles('ZIMBABWE',480,220,eob((T-nameT)*1.2));txt('“houses of stone”',480,268,18,'#b8434f','700 italic ')}
   person(200,440,1.3,{...JOSIAH,mood:'smile',ra:1});person(760,440,1.3,{...TAPIWA,mood:nameT>0?'big':'smile',flip:true,la:nameT>0?2.3:.3,ra:nameT>0?2.3:.3});
 }
-function draw(dt){[()=>LB.draw({year:'1100s',third:()=>person(800,430,1.45,{...JOSIAH,mood:'smile',flip:true,ra:.9})}),wallScene,siteScene,tradeMap,birdScene,mythCard,nameScene,()=>LB.draw({year:'1100s',third:()=>person(800,430,1.45,{...JOSIAH,mood:'smile',flip:true})})][Math.max(0,step)](dt)}
+function draw(dt){[()=>LB.draw({year:'1100s',third:()=>person(800,430,1.45,{...JOSIAH,mood:'smile',flip:true,ra:.9})}),wallScene,siteScene,tradeMap,birdScene,mythCard,debateScene,nameScene,()=>LB.draw({year:'1100s',third:()=>person(800,430,1.45,{...JOSIAH,mood:'smile',flip:true})})][Math.max(0,step)](dt)}
 
 
 requestAnimationFrame(loop);
