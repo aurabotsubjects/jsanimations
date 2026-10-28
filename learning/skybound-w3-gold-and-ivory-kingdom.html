@@ -105,6 +105,18 @@ button:focus-visible{outline:.3cqw solid var(--gold);outline-offset:.3cqw}
 .chip.red{background:var(--red);color:#fff}
 .chip.gold{background:var(--gold)}
 .chip.hide{display:none}
+
+/* hide-text toggle: tick to see the picture without cards, untick to carry on */
+#cleantog{position:absolute;left:1.4cqw;top:1.4cqw;z-index:50;display:flex;align-items:center;gap:.7cqw;padding:.6cqw 1.2cqw .6cqw .9cqw;border-radius:3cqw;
+  background:rgba(43,29,18,.55);color:#fbf3e2;font-weight:700;font-size:1.35cqw;cursor:pointer;opacity:.6;transition:opacity .2s,background .2s;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+#cleantog:hover,#cleantog:focus-within,#stage.clean #cleantog{opacity:1;background:rgba(43,29,18,.8)}
+#cleantog input{appearance:none;-webkit-appearance:none;width:1.7cqw;height:1.7cqw;margin:0;border:.2cqw solid #fbf3e2;border-radius:.35cqw;display:grid;place-items:center;cursor:pointer}
+#cleantog input:checked{background:var(--gold);border-color:var(--gold)}
+#cleantog input:checked::after{content:"✓";color:#2b1d12;font-size:1.3cqw;font-weight:900;line-height:1}
+#stage .ui>*:not(#cleantog){transition:opacity .3s}
+#stage.clean .ui>*:not(#cleantog){opacity:0!important;pointer-events:none!important}
+#stage.clean .ui>*:not(#cleantog) *{pointer-events:none!important}
+#stage.clean canvas{pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -112,6 +124,7 @@ button:focus-visible{outline:.3cqw solid var(--gold);outline-offset:.3cqw}
 <div id="stage">
   <canvas id="cv" aria-label="The Gold and Ivory Kingdom animation"></canvas>
   <div class="ui">
+    <label id="cleantog" title="Hide the text cards to see the picture (H)"><input type="checkbox" id="cleanbox" aria-label="Hide text cards"><span>Hide text</span></label>
     <div id="hot"></div>
     <div id="verse" class="paper tape hide"><div class="vt"></div><div class="vr"></div></div>
     <div id="hint" class="hide"><span class="dot"></span><span id="hinttext"></span></div>
@@ -443,6 +456,14 @@ function draw(dt){
 
 
 requestAnimationFrame(loop);
+
+// hide-text toggle
+(function(){const st=document.getElementById('stage'),cb=document.getElementById('cleanbox'),lb=cb.nextElementSibling;
+function set(on){cb.checked=on;st.classList.toggle('clean',on);lb.textContent=on?'Show text':'Hide text'}
+cb.addEventListener('change',()=>set(cb.checked));
+document.getElementById('cleantog').addEventListener('click',e=>e.stopPropagation());
+addEventListener('keydown',e=>{if((e.key==='h'||e.key==='H')&&!e.ctrlKey&&!e.metaKey&&!e.altKey){set(!cb.checked);e.preventDefault()}else if(st.classList.contains('clean')&&/^Arrow/.test(e.key)){e.stopImmediatePropagation()}},true);
+})();
 </script>
 </body>
 </html>
