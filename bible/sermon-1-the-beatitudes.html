@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Beatitudes – The Sermon on the Mount</title>
+<style>
+:root{--paper:#fbf3e2;--paper2:#f3e6cb;--ink:#3b2a1c;--soft:#7a6350;--red:#b8434f;--gold:#e9b44c;--green:#4f8a4b;
+  --serif:Georgia,"Iowan Old Style","Palatino Linotype",serif;--sans:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#231b13;overflow:hidden;-webkit-font-smoothing:antialiased}
+body{display:grid;place-items:center;font-family:var(--sans);color:var(--ink)}
+#stage{position:relative;width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;container-type:size;overflow:hidden;background:#f6e3c0;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ui{position:absolute;inset:0;pointer-events:none}
+.ui>*{pointer-events:auto}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:.3cqw solid var(--gold);outline-offset:.3cqw}
+
+.paper{background:var(--paper);background-image:radial-gradient(rgba(120,80,30,.07) 1px,transparent 1.2px),radial-gradient(rgba(255,255,255,.6) 1px,transparent 1.2px);
+  background-size:.55cqw .55cqw,.8cqw .8cqw;background-position:0 0,.3cqw .3cqw;
+  box-shadow:.25cqw .45cqw 0 rgba(60,35,15,.25),0 .2cqw 1.2cqw rgba(60,35,15,.25)}
+.tape::before{content:"";position:absolute;top:-1.1cqw;left:50%;width:9cqw;height:2.2cqw;transform:translateX(-50%) rotate(-3deg);background:rgba(233,180,76,.55);box-shadow:0 .1cqw .3cqw rgba(0,0,0,.12)}
+
+/* caption strip */
+#cap{position:absolute;left:3cqw;right:3cqw;bottom:2.4cqw;min-height:9cqw;border-radius:.6cqw 1.2cqw .8cqw 1cqw;padding:1.4cqw 2cqw 1.4cqw 2.4cqw;
+  display:flex;align-items:center;gap:2cqw;transform:rotate(-.25deg);transition:opacity .4s,transform .4s}
+#cap.hide{opacity:0;transform:translateY(3cqw);pointer-events:none}
+#captext{flex:1;font-size:2.15cqw;line-height:1.35}
+#captext b{color:var(--red)}
+#captext .q{font-family:var(--serif);font-style:italic}
+.nav{display:flex;align-items:center;gap:1cqw;flex:none}
+.nb{height:4.4cqw;min-width:4.4cqw;padding:0 1.6cqw;border:0;border-radius:.8cqw 1.2cqw .9cqw 1.1cqw;font-weight:700;font-size:1.7cqw;
+  background:var(--ink);color:var(--paper);box-shadow:.2cqw .35cqw 0 rgba(0,0,0,.25);transition:transform .15s,background .2s,opacity .2s}
+.nb:hover{transform:translateY(-.15cqw)}
+.nb.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 .2cqw rgba(59,42,28,.35);padding:0}
+.nb:disabled{opacity:.35;cursor:default;transform:none}
+#next.ready{background:var(--red);animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(.35cqw)}}
+#dots{display:flex;gap:.5cqw}
+#dots i{width:.8cqw;height:.8cqw;border-radius:50%;background:rgba(59,42,28,.22)}
+#dots i.on{background:var(--red)}
+
+/* hint tag */
+#hint{position:absolute;left:50%;top:2.2cqw;transform:translateX(-50%);padding:.9cqw 1.8cqw;border-radius:5cqw;background:var(--ink);color:var(--paper);font-weight:700;font-size:1.65cqw;
+  display:flex;align-items:center;gap:.8cqw;white-space:nowrap;box-shadow:0 .4cqw 1cqw rgba(0,0,0,.3);transition:opacity .35s,transform .35s;pointer-events:none}
+#hint.hide{opacity:0;transform:translate(-50%,-1.5cqw)}
+#hint span.dot{width:1.1cqw;height:1.1cqw;border-radius:50%;background:var(--gold);animation:ping 1.2s ease-out infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(233,180,76,.8)}100%{box-shadow:0 0 0 1.2cqw rgba(233,180,76,0)}}
+
+/* verse card */
+#verse{position:absolute;left:50%;top:7cqw;width:min(64cqw,100%);transform:translateX(-50%) rotate(.6deg);padding:2cqw 2.6cqw 1.6cqw;border-radius:.4cqw;text-align:center;transition:opacity .45s,transform .45s}
+#verse.hide{opacity:0;transform:translateX(-50%) translateY(-2cqw) rotate(-2deg);pointer-events:none}
+#verse .vt{font-family:var(--serif);font-style:italic;font-size:2.35cqw;line-height:1.4}
+#verse .vr{margin-top:.8cqw;font-size:1.3cqw;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+
+/* pop card (details) */
+#pop{position:absolute;left:50%;top:50%;width:46cqw;transform:translate(-50%,-56%) rotate(-.8deg);padding:2.4cqw 2.8cqw 2.2cqw;border-radius:.6cqw;text-align:center;
+  transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1)}
+#pop.hide{opacity:0;transform:translate(-50%,-50%) scale(.85) rotate(4deg);pointer-events:none}
+#pop .ic{font-size:4.6cqw;line-height:1;margin-bottom:.8cqw}
+#pop .k{font-size:1.25cqw;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#pop h3{margin:.6cqw 0 1cqw;font-family:var(--serif);font-style:italic;font-weight:600;font-size:2.4cqw;line-height:1.3}
+#pop p{margin:0;font-size:1.85cqw;line-height:1.45;color:var(--soft)}
+#pop .close{position:absolute;right:1cqw;top:.8cqw;border:0;background:none;font-size:2.4cqw;color:var(--soft);padding:.3cqw .8cqw}
+
+/* title + end cards */
+.card{position:absolute;left:50%;top:47%;width:58cqw;transform:translate(-50%,-50%) rotate(-.6deg);padding:3.4cqw 4cqw 3cqw;border-radius:.6cqw;text-align:center;transition:opacity .5s,transform .6s}
+.card.hide{opacity:0;transform:translate(-50%,-44%) rotate(2deg);pointer-events:none}
+.card .kick{font-size:1.35cqw;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+.card h1{margin:1cqw 0 .6cqw;font-family:var(--serif);font-size:5.4cqw;line-height:1.02;letter-spacing:-.01em}
+.card h2{margin:1cqw 0 1cqw;font-family:var(--serif);font-size:3.6cqw;line-height:1.1}
+.card .ref{font-family:var(--serif);font-style:italic;font-size:2cqw;color:var(--soft)}
+.card p{font-size:1.9cqw;line-height:1.45;margin:1.2cqw auto 0;max-width:46cqw}
+.card .think{margin-top:1.8cqw;padding:1.2cqw 1.6cqw;border-radius:.8cqw;background:rgba(233,180,76,.22);font-size:1.75cqw;line-height:1.4}
+.card .think b{display:block;font-size:1.2cqw;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin-bottom:.3cqw}
+.big{margin-top:2.4cqw;height:5.6cqw;padding:0 3.4cqw;border:0;border-radius:1cqw 1.6cqw 1.2cqw 1.4cqw;background:var(--red);color:#fff;font-weight:800;font-size:2.1cqw;
+  box-shadow:.3cqw .5cqw 0 rgba(0,0,0,.25);transition:transform .15s}
+.big:hover{transform:translateY(-.2cqw) rotate(-1deg)}
+.big.alt{background:var(--ink);margin-left:1cqw}
+.series{margin-top:1.6cqw;font-size:1.3cqw;color:var(--soft)}
+
+/* hotspots */
+#hot{position:absolute;inset:0;pointer-events:none}
+.hs{position:absolute;pointer-events:auto;border:0;background:transparent;border-radius:50%;padding:0;transform:translate(-50%,-50%)}
+.hs.pulse::after{content:"";position:absolute;inset:-12%;border-radius:inherit;border:.3cqw dashed rgba(255,226,140,.95);animation:spin 1.4s ease-in-out infinite,glow 1.4s ease-in-out infinite}
+@keyframes spin{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes glow{0%,100%{opacity:.45}50%{opacity:1}}
+.hs.done::after{display:none}
+.chip{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);border:0;padding:1cqw 1.8cqw;border-radius:.8cqw 1.3cqw 1cqw 1.2cqw;font-weight:800;font-size:1.75cqw;
+  background:var(--paper);color:var(--ink);box-shadow:.25cqw .45cqw 0 rgba(60,35,15,.3);transition:transform .2s,background .2s}
+.chip:hover{transform:translate(-50%,-50%) rotate(-2deg) scale(1.04)}
+.chip.red{background:var(--red);color:#fff}
+.chip.gold{background:var(--gold)}
+.chip.hide{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" aria-label="The Beatitudes animation"></canvas>
+  <div class="ui">
+    <div id="hot"></div>
+    <div id="verse" class="paper tape hide"><div class="vt"></div><div class="vr"></div></div>
+    <div id="hint" class="hide"><span class="dot"></span><span id="hinttext"></span></div>
+    <div id="pop" class="paper hide" role="dialog"><button class="close" aria-label="Close">×</button><div class="ic"></div><div class="k"></div><h3></h3><p></p></div>
+    <div id="cap" class="paper hide"><div id="captext"></div>
+      <div class="nav"><button class="nb ghost" id="prev" aria-label="Back">◀</button><span id="dots"></span><button class="nb" id="next">Next ▶</button></div></div>
+    <div id="titlecard" class="card paper tape">
+      <div class="kick">The Sermon on the Mount · Part 1 of 6</div>
+      <h1>The Beatitudes</h1>
+      <div class="ref">Matthew 5:1–12</div>
+      <p>Jesus climbs a hillside and begins His most famous sermon with eight surprising blessings.</p>
+      <button class="big" id="start">▶ Start</button>
+      <div class="series">Tap, click and explore as the story goes.</div>
+    </div>
+    <div id="endcard" class="card paper tape hide">
+      <div class="kick">The big idea</div>
+      <h2>God’s blessing is for people who know they need Him, not people who just look impressive.</h2>
+      <div class="think"><b>Think about it</b>Which blessing would you like to grow in this week: being merciful, being a peacemaker, or something else?</div>
+      <button class="big" id="again">↻ Watch again</button>
+      <div class="series">Scripture quotations are from the NIV. · Next: Part 2, Salt and Light.</div>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+/* ================= PAPER-CUT KIT ================= */
+const W=960,H=540,cv=document.getElementById('cv'),g=cv.getContext('2d');
+const $=s=>document.querySelector(s);
+const cl=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
+const ease=q=>{q=cl(q);return q*q*(3-2*q)};
+const eob=q=>{q=cl(q);const c=1.70158;return 1+(c+1)*Math.pow(q-1,3)+c*Math.pow(q-1,2)};
+const hash=(a,b)=>{const v=Math.sin(a*127.1+b*311.7)*43758.5453;return v-Math.floor(v)};
+let T=0,F=0,ST=0; // global time, stop-motion frame, time in current step
+function fit(){const r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);cv.width=Math.max(1,Math.round(r.width*d));cv.height=Math.max(1,Math.round(r.height*d))}
+addEventListener('resize',fit);fit();
+// paper grain
+const pc=document.createElement('canvas');pc.width=pc.height=140;{const p=pc.getContext('2d');
+ for(let i=0;i<1100;i++){p.fillStyle=Math.random()<.5?'rgba(255,255,255,.16)':'rgba(90,60,30,.10)';p.fillRect(Math.random()*140,Math.random()*140,1+Math.random()*1.6,1+Math.random()*1.6)}}
+const PAT=g.createPattern(pc,'repeat');
+// cut-paper polygon (edges wobble a little, like stop-motion)
+function poly(pts,col,o={}){
+  const j=o.j??1.3;g.beginPath();
+  pts.forEach(([x,y],i)=>{const a=x+(hash(x*.37+F*1.7,y)-.5)*j,b=y+(hash(y*.37,x+F*1.3)-.5)*j;i?g.lineTo(a,b):g.moveTo(a,b)});
+  g.closePath();
+  if(o.shadow!==false){g.save();g.shadowColor=o.sc||'rgba(45,28,12,.30)';g.shadowBlur=o.sb??5;g.shadowOffsetX=o.sx??2;g.shadowOffsetY=o.sy??3;g.fillStyle=col;g.fill();g.restore()}
+  else{g.fillStyle=col;g.fill()}
+  if(o.grain!==false){g.save();g.globalAlpha=.55;g.fillStyle=PAT;g.fill();g.restore()}
+}
+function oval(cx,cy,rx,ry,col,o={}){
+  const a0=o.a0??0,a1=o.a1??Math.PI*2,n=o.n||Math.max(12,Math.min(44,Math.round((rx+ry)/2.6))),p=[];
+  for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;p.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry])}
+  poly(p,col,o);
+}
+function rect(x,y,w,h,col,o={}){const p=[],n=Math.max(1,Math.round(w/40));for(let i=0;i<=n;i++)p.push([x+w*i/n,y]);for(let i=0;i<=n;i++)p.push([x+w-w*i/n,y+h]);poly([...p.slice(0,n+1),[x+w,y+h*.5],...p.slice(n+1),[x,y+h*.5]],col,o)}
+function glow(x,y,r,col,a=1){const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(255,255,255,0)');g.save();g.globalAlpha=a;g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);g.restore()}
+function sky(top,bot,y1=H){const gr=g.createLinearGradient(0,0,0,y1);gr.addColorStop(0,top);gr.addColorStop(1,bot);g.fillStyle=gr;g.fillRect(0,0,W,H);g.save();g.globalAlpha=.35;g.fillStyle=PAT;g.fillRect(0,0,W,H);g.restore()}
+function sun(x,y,r,col='#f6c445'){glow(x,y,r*3,'rgba(255,230,150,.55)');
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2+T*.08;g.save();g.translate(x,y);g.rotate(a);poly([[r*1.12,-r*.16],[r*1.62,0],[r*1.12,r*.16]],'#f3a93b',{shadow:false});g.restore()}
+  oval(x,y,r,r,col)}
+function cloud(x,y,s=1,col='#fffaf0'){oval(x,y,46*s,20*s,col,{sb:4});oval(x-24*s,y+2*s,26*s,16*s,col,{shadow:false});oval(x+6*s,y-12*s,30*s,22*s,col,{shadow:false});oval(x+30*s,y+2*s,24*s,15*s,col,{shadow:false})}
+function hillPts(y0,amp,seed,len=W+40){const p=[[-20,H+10]];for(let x=-20;x<=len;x+=40)p.push([x,y0-amp*(.5+.5*Math.sin(x*.006+seed))-amp*.35*Math.sin(x*.017+seed*2)]);p.push([len,H+10]);return p}
+function hill(y0,amp,seed,col,o){poly(hillPts(y0,amp,seed),col,o)}
+function tuft(x,y,s=1,col='#4f8a4b'){poly([[x-6*s,y],[x-3*s,y-12*s],[x,y-3*s],[x+2*s,y-15*s],[x+4*s,y-3*s],[x+8*s,y-10*s],[x+7*s,y]],col,{shadow:false})}
+function flower(x,y,s=1,col='#e86f8a',open=1){g.save();g.strokeStyle='#4f8a4b';g.lineWidth=3*s;g.beginPath();g.moveTo(x,y);g.lineTo(x,y-26*s*Math.max(.4,open));g.stroke();g.restore();
+  const yy=y-26*s*Math.max(.4,open);if(open<.15){oval(x,yy,4*s,6*s,'#6ea85d',{shadow:false});return}
+  const r=9*s*open;for(let i=0;i<5;i++){const a=i/5*Math.PI*2+.3;oval(x+Math.cos(a)*r*.9,yy+Math.sin(a)*r*.9,r*.7,r*.7,col,{shadow:false,n:10})}oval(x,yy,r*.5,r*.5,'#f6c445',{shadow:false,n:10})}
+function bird(x,y,s=1,flap=0,col='#4a5f8a'){const w=Math.sin(flap)*10*s;oval(x,y,12*s,7*s,col,{n:14,sb:3});poly([[x-2*s,y-2*s],[x-14*s,y-8*s-w],[x+4*s,y-3*s]],col,{shadow:false});poly([[x+2*s,y-2*s],[x+14*s,y-10*s-w],[x+8*s,y-2*s]],col,{shadow:false});
+  oval(x+11*s,y-4*s,5*s,5*s,col,{n:10,shadow:false});poly([[x+15*s,y-5*s],[x+20*s,y-3*s],[x+15*s,y-2*s]],'#f0a63b',{shadow:false});g.fillStyle='#fff';g.beginPath();g.arc(x+12*s,y-5*s,1.4*s,0,7);g.fill()}
+function wtxt(s,x,y,maxW,size=20,col='#3b2a1c',font='700 ',lh=1.25){g.save();g.font=font+size+'px Georgia,serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle=col;const L=[];let line='';for(const w of s.split(' ')){const t=line?line+' '+w:w;if(g.measureText(t).width>maxW&&line){L.push(line);line=w}else line=t}L.push(line);L.forEach((l,i)=>g.fillText(l,x,y+(i-(L.length-1)/2)*size*lh));g.restore()}
+function txt(s,x,y,size=20,col='#3b2a1c',font='700 ',align='center'){g.save();g.font=font+size+'px Georgia,serif';g.textAlign=align;g.textBaseline='middle';g.fillStyle=col;g.fillText(s,x,y);g.restore()}
+/* people — y is the ground line under their feet */
+const SKIN=['#d9a57c','#c98f62','#b87a4b','#e3b48d','#a86d45'],HAIR=['#3a2618','#5a3a22','#2a1d14','#6b4a2e','#8a8a88'];
+const ROBE=['#c96f4a','#6f8fb4','#8aa56a','#d6a64b','#9a6a9e','#b5523f','#5f8d8a','#c78f6b','#7d6aa8','#e0c48a'];
+function person(x,y,s,o={}){
+  const sit=!!o.sit,robe=o.robe||'#c96f4a',skin=o.skin||'#d9a57c',top=sit?-48:-64,hy=top-15,flip=o.flip?-1:1;
+  g.save();g.translate(x,y+(o.bob||0));g.scale(s*flip,s);if(o.rot)g.rotate(o.rot);
+  if(sit){poly([[-12,top],[12,top],[20,-14],[30,-10],[30,0],[-18,0],[-20,-10]],robe)}
+  else{oval(-6,-1,5,3,'#5b3c24',{shadow:false,n:8});oval(7,-1,5,3,'#5b3c24',{shadow:false,n:8});poly([[-12,top],[12,top],[19,-3],[-19,-3]],robe)}
+  if(o.sash)poly([[-13,top+22],[13,top+22],[14,top+28],[-14,top+28]],o.sash,{shadow:false});
+  if(o.cloak)poly([[-13,top+2],[-4,top],[-10,sit?-8:-4],[-20,sit?-8:-4]],o.cloak,{shadow:false});
+  const arm=(sx,ang,len=27)=>{g.save();g.translate(sx*10,top+5);g.rotate(-sx*ang);poly([[-4.5,0],[4.5,0],[4,len],[-4,len]],o.sleeve||robe,{sb:3});oval(0,len+3,4.6,4.6,skin,{shadow:false,n:10});g.restore()};
+  arm(-1,o.la??.18);arm(1,o.ra??.18);
+  if(o.hold)o.hold(top);
+  oval(0,hy,11.5,12.5,skin,{n:20});
+  if(o.head){poly([[-14,hy-2],[-12,hy-12],[0,hy-16],[12,hy-12],[14,hy-2],[15,hy+14],[9,hy+16],[10,hy-3],[-10,hy-3],[-9,hy+16],[-15,hy+14]],o.head,{sb:3});
+    if(o.band)poly([[-13,hy-6],[13,hy-6],[13,hy-3],[-13,hy-3]],o.band,{shadow:false})}
+  else if(o.hair){oval(0,hy-4,12.5,9.5,o.hair,{a0:Math.PI*1.02,a1:Math.PI*1.98,shadow:false,n:16});if(o.long)poly([[-12,hy-4],[-13,hy+12],[-8,hy+10],[-9,hy-2]],o.hair,{shadow:false}),poly([[12,hy-4],[13,hy+12],[8,hy+10],[9,hy-2]],o.hair,{shadow:false})}
+  if(o.beard)poly([[-11,hy+2],[-8,hy+13],[0,hy+18],[8,hy+13],[11,hy+2],[6,hy+7],[-6,hy+7]],o.hair||'#4a3020',{shadow:false});
+  // face
+  g.fillStyle='#2b1d12';const ey=hy-1;g.beginPath();g.arc(-4,ey,1.5,0,7);g.arc(4.5,ey,1.5,0,7);g.fill();
+  g.strokeStyle='#2b1d12';g.lineWidth=1.5;g.lineCap='round';g.beginPath();
+  const m=o.mood||'smile';
+  if(m==='smile')g.arc(0.5,hy+3.5,3.6,.25,Math.PI-.25);
+  else if(m==='big'){g.arc(0.5,hy+3,4.6,.1,Math.PI-.1);g.closePath();g.fillStyle='#7a2f2a';g.fill()}
+  else if(m==='sad')g.arc(0.5,hy+8,3.4,Math.PI+.35,-.35);
+  else if(m==='frown'){g.moveTo(-3,hy+6);g.lineTo(4,hy+5);g.moveTo(-6,ey-4);g.lineTo(-2,ey-2.5);g.moveTo(7,ey-4);g.lineTo(3,ey-2.5)}
+  else if(m==='o')g.arc(0.5,hy+5.5,2,0,7);
+  else{g.moveTo(-2.5,hy+5.5);g.lineTo(3.5,hy+5.5)}
+  g.stroke();
+  if(o.blush){g.fillStyle='rgba(220,90,90,.25)';g.beginPath();g.arc(-7,hy+3,2.6,0,7);g.arc(8,hy+3,2.6,0,7);g.fill()}
+  if(o.after)o.after(hy,top);
+  g.restore();
+}
+function jesus(x,y,s,o={}){person(x,y,s,{robe:'#f6efe0',sash:'#b8434f',cloak:'#c9564f',skin:'#c98f62',hair:'#4a2f1c',beard:true,long:true,...o})}
+function crowdList(n,seed,x0,x1,y0,y1,o={}){const a=[];for(let i=0;i<n;i++){const r=k=>hash(i*3.1+seed,k*7.7);
+  a.push({x:lerp(x0,x1,r(1)),y:lerp(y0,y1,r(2)),s:lerp(.62,.82,r(3))*(o.scale||1),robe:ROBE[(r(4)*ROBE.length)|0],skin:SKIN[(r(5)*SKIN.length)|0],hair:HAIR[(r(6)*HAIR.length)|0],
+   beard:r(7)>.62,head:r(8)>.55?ROBE[(r(9)*ROBE.length)|0]:null,flip:r(10)>.5,kid:r(11)>.78,ph:r(12)*6.28})}
+  return a.sort((p,q)=>p.y-q.y)}
+function drawCrowd(list,o={}){list.forEach(p=>person(p.x,p.y,p.s*(p.kid?.75:1),{robe:p.robe,skin:p.skin,hair:p.hair,beard:p.beard&&!p.kid,head:p.head,flip:o.face!==undefined?o.face<p.x:p.flip,sit:o.sit,mood:o.mood||'smile',bob:o.bob?Math.sin(T*2+p.ph)*o.bob:0,ra:o.ra?o.ra(p):.18,la:o.la?o.la(p):.18}))}
+
+/* ================= STEP ENGINE + UI ================= */
+const cap=$('#cap'),capText=$('#captext'),nextB=$('#next'),prevB=$('#prev'),dots=$('#dots'),hint=$('#hint'),hintText=$('#hinttext'),hot=$('#hot'),pop=$('#pop'),verseEl=$('#verse');
+let STEPS=[],step=-1,started=false,ended=false;
+function verse(t,r){if(!t){verseEl.classList.add('hide');return}verseEl.querySelector('.vt').innerHTML='“'+t+'”';verseEl.querySelector('.vr').textContent=r||'';verseEl.classList.remove('hide')}
+function showPop(ic,k,h,p){pop.querySelector('.ic').textContent=ic;pop.querySelector('.k').textContent=k;pop.querySelector('h3').innerHTML=h;pop.querySelector('p').innerHTML=p;pop.classList.remove('hide')}
+function hidePop(){pop.classList.add('hide')}
+pop.querySelector('.close').onclick=hidePop;
+function clearHot(){hot.innerHTML=''}
+// hotspot: circle/rect in canvas coords
+function hs(x,y,w,h,label,fn,cls='pulse'){const b=document.createElement('button');b.className='hs '+cls;b.setAttribute('aria-label',label);b.title=label;
+  Object.assign(b.style,{left:x/W*100+'%',top:y/H*100+'%',width:w/W*100+'%',height:h/H*100+'%'});b.onclick=e=>{e.stopPropagation();fn(b)};hot.appendChild(b);return b}
+function chip(x,y,label,fn,cls=''){const b=document.createElement('button');b.className='chip '+cls;b.innerHTML=label;Object.assign(b.style,{left:x/W*100+'%',top:y/H*100+'%'});b.onclick=e=>{e.stopPropagation();fn(b)};hot.appendChild(b);return b}
+function refresh(){
+  if(step<0)return;const s=STEPS[step],ok=!s.need||s.need();
+  nextB.disabled=!ok;nextB.classList.toggle('ready',ok&&!!s.need);
+  nextB.textContent=step===STEPS.length-1?'Finish ✓':'Next ▶';
+  prevB.disabled=step===0;
+  const ht=!ok&&s.hint?(typeof s.hint==='function'?s.hint():s.hint):'';
+  hintText.textContent=ht;hint.classList.toggle('hide',!ht);
+  dots.innerHTML=STEPS.map((_,i)=>`<i class="${i===step?'on':''}"></i>`).join('');
+}
+function go(i){
+  step=i;ST=0;const s=STEPS[i];clearHot();hidePop();verse(null);
+  capText.innerHTML=s.cap;cap.classList.remove('hide');
+  s.enter&&s.enter();refresh();
+}
+nextB.onclick=()=>{if(step<STEPS.length-1)go(step+1);else finish()};
+prevB.onclick=()=>{if(step>0)go(step-1)};
+function finish(){ended=true;cap.classList.add('hide');hint.classList.add('hide');clearHot();hidePop();verse(null);$('#endcard').classList.remove('hide');if(window.onFinish)onFinish()}
+$('#start').onclick=()=>{$('#titlecard').classList.add('hide');started=true;go(0)};
+$('#again').onclick=()=>{$('#endcard').classList.add('hide');ended=false;if(window.reset)reset();go(0)};
+addEventListener('keydown',e=>{if(!started||ended)return;if(e.key==='ArrowRight'&&!nextB.disabled)nextB.click();if(e.key==='ArrowLeft'&&!prevB.disabled)prevB.click()});
+let lastNow=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.12,(now-lastNow)/1000);lastNow=now;T+=dt;ST+=dt;F=Math.floor(T*6);
+  g.setTransform(cv.width/W,0,0,cv.height/H,0,0);g.clearRect(0,0,W,H);draw(dt);
+  // vignette
+  const v=g.createRadialGradient(W/2,H/2,H*.45,W/2,H/2,H*.95);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(40,20,5,.28)');g.fillStyle=v;g.fillRect(0,0,W,H)}
+
+/* ================= SCENE ================= */
+/* PART 1 — THE BEATITUDES (Matthew 5:1–12) */
+const crowd=crowdList(24,11,70,890,338,436);
+crowd.forEach((p,i)=>{p.sx=p.x<480?-80-hash(i,3)*260:W+80+hash(i,4)*260;p.del=hash(i,5)*1.4});
+const disc=[{x:392,y:300,s:.78,robe:'#8aa56a',skin:'#c98f62',hair:'#3a2618',beard:true,flip:false},{x:420,y:316,s:.8,robe:'#6f8fb4',skin:'#b87a4b',hair:'#2a1d14',beard:true,head:'#d6a64b'},
+  {x:546,y:312,s:.8,robe:'#b5523f',skin:'#d9a57c',hair:'#5a3a22',beard:true,flip:true},{x:574,y:298,s:.76,robe:'#5f8d8a',skin:'#a86d45',hair:'#3a2618',flip:true,head:'#e0c48a'}];
+const B=[
+ {ic:'🙏',q:'Blessed are the poor in spirit, for theirs is the kingdom of heaven.',r:'Matthew 5:3',m:'People who know they need God, and don’t pretend they can do life on their own.'},
+ {ic:'💧',q:'Blessed are those who mourn, for they will be comforted.',r:'Matthew 5:4',m:'When we are sad or hurting, God sees us and comforts us.'},
+ {ic:'🐑',q:'Blessed are the meek, for they will inherit the earth.',r:'Matthew 5:5',m:'Meek means gentle and humble — strong, but not bossy or proud.'},
+ {ic:'🍞',q:'Blessed are those who hunger and thirst for righteousness, for they will be filled.',r:'Matthew 5:6',m:'People who want to do what is right as much as a hungry person wants food.'},
+ {ic:'🤝',q:'Blessed are the merciful, for they will be shown mercy.',r:'Matthew 5:7',m:'People who forgive, and are kind even when someone doesn’t deserve it.'},
+ {ic:'💛',q:'Blessed are the pure in heart, for they will see God.',r:'Matthew 5:8',m:'People whose hearts are honest and true, not fake on the inside.'},
+ {ic:'🕊️',q:'Blessed are the peacemakers, for they will be called children of God.',r:'Matthew 5:9',m:'People who help others stop fighting and get along.'},
+ {ic:'🛡️',q:'Blessed are those who are persecuted because of righteousness, for theirs is the kingdom of heaven.',r:'Matthew 5:10',m:'People who are treated badly for doing right and following Jesus.'}];
+const BP=B.map((b,i)=>{const a=Math.PI*(i+.5)/8;return{x:480-Math.cos(a)*370,y:205-Math.sin(a)*92}});
+let opened=new Set(),flipT=0,flipA=0,cheer=0;
+window.reset=()=>{opened=new Set();flipT=0;flipA=0;cheer=0};
+
+STEPS=[
+ {cap:'Huge crowds followed Jesus. So He went up on a <b>mountainside</b>, sat down, and began to teach them.',
+  enter(){verse('Now when Jesus saw the crowds, he went up on a mountainside and sat down.','Matthew 5:1')}},
+ {cap:'Jesus began with eight surprising <b>blessings</b>. “Blessed” means truly happy, because you are close to God.',
+  hint:()=>`Tap each glowing blessing (${opened.size} of 8)`,need:()=>opened.size===8,
+  enter(){BP.forEach((p,i)=>hs(p.x,p.y,58,58,'Blessing '+(i+1),b=>{opened.add(i);b.classList.add('done');const x=B[i];
+     showPop(x.ic,'Blessing '+(i+1)+' of 8',x.q,x.m);refresh()},opened.has(i)?'done':'pulse'))}},
+ {cap:'Jesus turned the world’s idea of a “winner” <b>upside down</b>. Flip the sign to see what He meant.',
+  hint:'Tap the sign to flip it',need:()=>flipT===1,
+  enter(){hs(790,282,260,150,'Flip the sign',b=>{flipT=flipT?0:1;b.classList.add('done');refresh()},flipT?'done':'pulse');hs(790,282,260,150,'',()=>{},'done')}},
+ {cap:'Even when following Jesus is hard, there is joy waiting. He said: <span class="q">“Rejoice and be glad, because great is your reward in heaven.”</span> <small>(Matthew 5:12)</small>',
+  enter(){cheer=0}}
+];
+STEPS[2].enter=function(){const b=hs(790,282,260,150,'Flip the sign',b=>{flipT=flipT?0:1;b.classList.add('done');refresh()},flipT?'done':'pulse');b.style.borderRadius='1.5cqw'};
+
+function draw(dt){
+  const teach=step>=1;
+  sky('#8fcbe6','#fbe7c4',330);
+  sun(842,78,28);
+  cloud(((T*6+120)%1150)-100,70,.9);cloud(((T*4+640)%1150)-100,118,.65);
+  // Sea of Galilee + far hills
+  hill(238,26,4,'#a9c58c',{shadow:false});
+  poly([[560,258],[980,236],[980,300],[600,300]],'#5d9cc6',{shadow:false});
+  for(let i=0;i<5;i++)poly([[640+i*64+Math.sin(T+i)*6,268+i%2*8],[672+i*64+Math.sin(T+i)*6,265+i%2*8],[700+i*64+Math.sin(T+i)*6,269+i%2*8]],'rgba(255,255,255,.55)',{shadow:false,grain:false});
+  // little boat
+  const bx=760+Math.sin(T*.4)*30;poly([[bx-26,262],[bx+26,262],[bx+18,272],[bx-18,272]],'#8a5a35',{sb:2});poly([[bx,232],[bx,260],[bx+18,258]],'#fbf3e2',{sb:2});
+  // the mountain
+  poly(hillPts(300,90,1.2),'#86b462');
+  // rock + Jesus
+  oval(480,276,60,22,'#9c8c78');oval(470,268,40,14,'#b3a48f',{shadow:false});
+  glow(480,210,teach?120:70,'rgba(255,240,190,.55)',.7+.2*Math.sin(T*2));
+  jesus(480,262,1.08,{sit:true,ra:teach?.7+.25*Math.sin(T*1.7):.25,la:.2,mood:'smile'});
+  disc.forEach(d=>person(d.x,d.y,d.s,{...d,sit:true,mood:'smile',flip:d.x<480?true:false}));
+  // front slope
+  poly(hillPts(352,26,3.1),'#74a352');
+  for(let i=0;i<34;i++)tuft(20+i*28+(hash(i,2)*14),360+hash(i,1)*90,.9,'#5d8f42');
+  // crowd walks in then sits
+  crowd.forEach((p,i)=>{
+    const k=step===0?ease((ST-p.del)/2.6):1,x=lerp(p.sx,p.x,k),walking=k<1;
+    person(x,p.y,p.s*(p.kid?.75:1),{robe:p.robe,skin:p.skin,hair:p.hair,beard:p.beard&&!p.kid,head:p.head,flip:x>480,sit:!walking,
+      bob:walking?-Math.abs(Math.sin(T*9+i))*3:(step===3?-Math.abs(Math.sin(T*4+i))*6:0),mood:step===3?'big':(teach?'o':'smile'),
+      ra:step===3?2.3:.18,la:step===3?2.3:.18});
+  });
+  for(let i=0;i<9;i++)flower(60+i*105+hash(i,9)*30,446+hash(i,8)*10,.8,['#e86f8a','#f6c445','#ffffff'][i%3]);
+  // blessings
+  if(step>=1){BP.forEach((p,i)=>{const on=opened.has(i),bob=Math.sin(T*1.6+i)*4,pp=eob(ST*1.6-i*.12);if(step===1&&pp<=0)return;
+    g.save();g.translate(p.x,p.y+bob);g.scale(step===1?pp:1,step===1?pp:1);
+    if(!on)glow(0,0,52,'rgba(255,236,160,.9)',.6+.3*Math.sin(T*3+i));
+    oval(0,0,26,26,on?'#e9b44c':'#fbf3e2',{n:26});oval(0,0,20,20,on?'#f3cb6c':'#f3e6cb',{shadow:false,n:22});
+    g.font='22px system-ui,"Apple Color Emoji","Segoe UI Emoji"';g.textAlign='center';g.textBaseline='middle';g.fillText(B[i].ic,0,1);
+    g.restore()})}
+  // world vs Jesus sign
+  if(step>=2){flipA+=(flipT-flipA)*Math.min(1,dt*6);const sx=Math.cos(flipA*Math.PI),front=flipA<.5;
+    poly([[784,300],[796,300],[796,430],[784,430]],'#7a5230');
+    g.save();g.translate(790,282);g.scale(Math.max(.02,Math.abs(sx)),1);
+    poly([[-126,-70],[126,-74],[130,70],[-128,72]],front?'#d9c3a0':'#fbf3e2',{sb:6});
+    if(front){txt('THE WORLD SAYS',0,-46,15,'#7a6350','800 ');wtxt('Be the strongest, richest and most popular. Get even. Look after yourself first.',0,10,210,19,'#3b2a1c','700 ')}
+    else{txt('JESUS SAYS',0,-46,15,'#b8434f','800 ');wtxt('Blessed are the humble, the merciful, the peacemakers and those who need God.',0,10,214,19,'#3b2a1c','700 ')}
+    g.restore()}
+  if(step===3){for(let i=0;i<26;i++){const x=(i*137+ST*40)%W,y=((ST*70+i*61)%420);poly([[x,y],[x+7,y+2],[x+5,y+8],[x-1,y+6]],['#e9b44c','#e86f8a','#6f8fb4','#8aa56a'][i%4],{shadow:false,grain:false})}}
+}
+
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

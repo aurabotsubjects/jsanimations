@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Korea, 1950 — A Watercolor Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#f1e8d3;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  #replay{
+    position:fixed;left:0;top:0;opacity:0;pointer-events:none;
+    transition:opacity 1.6s ease;
+    padding:.55em 1.5em .6em;
+    font:26px "Caveat Brush","Segoe Script","Brush Script MT",cursive;
+    color:#f6efe0;background:rgba(34,82,160,.93);border:0;cursor:pointer;
+    border-radius:2.2em 1.5em 2.4em 1.7em / 1.5em 2.2em 1.6em 2.3em;
+    box-shadow:0 5px 16px rgba(30,30,70,.35), inset 0 0 14px rgba(255,255,255,.18);
+  }
+  #replay.show{opacity:1;pointer-events:auto}
+  #replay:hover{background:rgba(190,40,46,.95)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="replay" aria-label="Replay the animation">Replay</button>
+<script>
+(() => {
+'use strict';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), btn = document.getElementById('replay');
+
+/* ---------- constants ---------- */
+const HEAD = '"Caveat Brush","Segoe Script","Brush Script MT","Snell Roundhand",cursive';
+const BODY = '"Cormorant Garamond","Palatino Linotype",Palatino,Georgia,serif';
+const INK = '34,28,38', RED = '190,40,46', BLUE = '34,82,160';
+const PAPER = '#f1e8d3';
+const END = 82, INF = 1e9;
+
+/* ---------- helpers ---------- */
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eio = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const eo = x => 1 - Math.pow(1 - x, 3);
+const wob = (x, s = 0) => .5 * Math.sin(x * 3.1 + s) + .3 * Math.sin(x * 7.3 + s * 2.1 + 1) + .2 * Math.sin(x * 13.7 + s * 3.7 + 2);
+function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const darken = c => c.split(',').map(v => Math.round(v * .62)).join(',');
+
+/* ---------- state ---------- */
+let W, H, DPR, L, paper, texR, texB, texN, mapPath, coastPts, items = [];
+let t0 = 0, raf = 0, finished = false;
+
+/* stylised peninsula, unit box */
+const MAP = [[.30,.10],[.22,.14],[.25,.22],[.17,.30],[.25,.38],[.22,.46],[.20,.55],[.17,.65],[.20,.75],[.27,.85],[.35,.93],[.45,.97],[.55,.93],[.62,.85],[.68,.78],[.70,.68],[.72,.58],[.72,.50],[.78,.42],[.78,.30],[.85,.20],[.95,.10],[.92,.02],[.80,.05],[.70,.12],[.55,.10],[.40,.08]];
+
+const MX = u => L.mx + u * L.mw, MY = v => L.my + v * L.mh;
+const P = (u, v) => ({ x: MX(u), y: MY(v) });
+
+/* ---------- geometry ---------- */
+function closedSmooth(g, p) {
+  const n = p.length;
+  g.moveTo((p[0].x + p[n - 1].x) / 2, (p[0].y + p[n - 1].y) / 2);
+  for (let i = 0; i < n; i++) { const a = p[i], b = p[(i + 1) % n]; g.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2); }
+  g.closePath();
+}
+function spline(pts, seg = 10) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    for (let j = 0; j < seg; j++) {
+      const t = j / seg, t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: .5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: .5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+      });
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+/* ---------- textures ---------- */
+function makeWash(rgb, w, h, seed) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), r = rng(seed);
+  g.fillStyle = `rgb(${rgb})`; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 80; i++) {
+    const x = r() * w, y = r() * h, rad = (.06 + r() * .26) * Math.max(w, h), light = r() < .5;
+    const col = light ? '255,250,238' : rgb.split(',').map(v => v * .55 | 0).join(',');
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(${col},${.08 + r() * .14})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  const id = g.getImageData(0, 0, w, h), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (r() - .5) * 30; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(id, 0, 0);
+  return c;
+}
+function makePaper() {
+  const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), r = rng(42);
+  g.fillStyle = PAPER; g.fillRect(0, 0, w, h);
+  const tints = ['230,190,150', '170,190,215', '225,205,160', '200,170,160'];
+  for (let i = 0; i < 22; i++) {
+    const x = r() * w, y = r() * h, rad = (.1 + r() * .3) * Math.max(w, h), col = tints[i % 4];
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(${col},${.05 + r() * .07})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  const id = g.getImageData(0, 0, w, h), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (r() - .5) * 20; d[i] += n; d[i + 1] += n; d[i + 2] += n * .9; }
+  g.putImageData(id, 0, 0);
+  g.strokeStyle = 'rgba(120,100,70,.07)'; g.lineWidth = .6;
+  for (let i = 0; i < 160; i++) {
+    const x = r() * w, y = r() * h, a = r() * 6.28, l = 3 + r() * 9;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l * .5 + 2, y + Math.sin(a) * l * .5, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+  }
+  const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .45, w / 2, h / 2, Math.max(w, h) * .8);
+  v.addColorStop(0, 'rgba(120,90,50,0)'); v.addColorStop(1, 'rgba(120,90,50,.20)');
+  g.fillStyle = v; g.fillRect(0, 0, w, h);
+  return c;
+}
+
+/* ---------- brush strokes ---------- */
+function makeStroke(ctrl, o) {
+  const S = o.raw ? ctrl : spline(ctrl, o.seg || 10), n = S.length, seed = o.seed || 7, r = rng(seed);
+  const nx = [], ny = [], w = [], jl = [], jr = [];
+  for (let i = 0; i < n; i++) {
+    const a = S[Math.max(0, i - 1)], b = S[Math.min(n - 1, i + 1)];
+    let dx = b.x - a.x, dy = b.y - a.y; const l = Math.hypot(dx, dy) || 1;
+    nx[i] = -dy / l; ny[i] = dx / l;
+    const s = i / (n - 1);
+    const head = .4 + .6 * Math.sin(Math.min(1, s / .16) * Math.PI / 2);
+    const tail = 1 - .88 * Math.pow(Math.max(0, (s - .7) / .3), 2);
+    w[i] = o.w * head * tail * (1 + .18 * wob(s * 7, seed));
+    jl[i] = (r() - .5) * .25 * w[i]; jr[i] = (r() - .5) * .25 * w[i];
+  }
+  const nb = clamp(Math.round(o.w / 3), 4, 9), br = [];
+  for (let b = 0; b < nb; b++) br.push({ o: (r() - .5) * .8, s0: .3 + r() * .6, dark: r() < .4 });
+  return { S, n, nx, ny, w, jl, jr, br };
+}
+function drawStroke(st, p, alpha, col) {
+  if (p <= 0 || alpha <= 0) return;
+  const { S, n, nx, ny, w, jl, jr, br } = st;
+  const k = Math.max(1, Math.floor(p * (n - 1)));
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.fillStyle = `rgba(${col},.9)`;
+  ctx.beginPath();
+  for (let i = 0; i <= k; i++) { const x = S[i].x + nx[i] * (w[i] / 2 + jl[i]), y = S[i].y + ny[i] * (w[i] / 2 + jl[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  for (let i = k; i >= 0; i--) ctx.lineTo(S[i].x - nx[i] * (w[i] / 2 + jr[i]), S[i].y - ny[i] * (w[i] / 2 + jr[i]));
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(S[0].x, S[0].y, w[Math.min(3, n - 1)] * .55, 0, 7); ctx.fillStyle = `rgba(${col},.5)`; ctx.fill();
+  ctx.lineWidth = 1.1; ctx.lineCap = 'round';
+  for (const b of br) {
+    const i0 = Math.floor(b.s0 * (n - 1));
+    const from = b.dark ? 0 : i0, to = b.dark ? Math.min(k, i0) : k;
+    if (to - from < 2) continue;
+    ctx.strokeStyle = b.dark ? 'rgba(0,0,0,.18)' : 'rgba(241,232,211,.55)';
+    ctx.beginPath();
+    for (let i = from; i <= to; i++) { const x = S[i].x + nx[i] * b.o * w[i], y = S[i].y + ny[i] * b.o * w[i]; i === from ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ---------- paint splats ---------- */
+function makeSplat(x, y, R, col, seed) {
+  const r = rng(seed), N = 22, blob = [], drops = [], rays = [];
+  for (let i = 0; i < N; i++) blob.push([i / N * 6.283, R * (.72 + r() * .5) * (i % 5 === 0 ? 1.25 : 1)]);
+  const nd = 14 + Math.floor(r() * 10);
+  for (let i = 0; i < nd; i++) { const d = R * (1.3 + r() * 3.2); drops.push({ a: r() * 6.283, d, rad: Math.max(1.3, R * (.05 + r() * .2) * (1.6 - d / (R * 4.5))), el: r() }); }
+  for (let i = 0; i < 7; i++) rays.push({ a: r() * 6.283, len: R * (1.5 + r() * 2.3), w: R * (.07 + r() * .1) });
+  return { x, y, R, col, dark: darken(col), blob, drops, rays, ox: (r() - .5) * R * .35, oy: (r() - .5) * R * .35 };
+}
+function drawSplat(s, p, alpha) {
+  if (p <= 0 || alpha <= 0) return;
+  const e = eo(p), g = .35 + .65 * e;
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.fillStyle = `rgba(${s.col},.08)`; ctx.beginPath(); ctx.arc(s.x, s.y, s.R * 2.2 * g, 0, 7); ctx.fill();
+  ctx.fillStyle = `rgba(${s.col},.10)`; ctx.beginPath(); ctx.arc(s.x, s.y, s.R * 1.55 * g, 0, 7); ctx.fill();
+  for (const ry of s.rays) {
+    const len = ry.len * e, c = Math.cos(ry.a), sn = Math.sin(ry.a), r0 = s.R * .5 * g;
+    ctx.beginPath();
+    ctx.moveTo(s.x + c * r0 - sn * ry.w, s.y + sn * r0 + c * ry.w);
+    ctx.lineTo(s.x + c * len, s.y + sn * len);
+    ctx.lineTo(s.x + c * r0 + sn * ry.w, s.y + sn * r0 - c * ry.w);
+    ctx.closePath(); ctx.fillStyle = `rgba(${s.col},.5)`; ctx.fill();
+  }
+  const pts = s.blob.map(([a, rr]) => ({ x: s.x + Math.cos(a) * rr * g, y: s.y + Math.sin(a) * rr * g }));
+  ctx.beginPath(); closedSmooth(ctx, pts); ctx.fillStyle = `rgba(${s.col},.62)`; ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = `rgba(${s.dark},.55)`; ctx.stroke();
+  const p2 = s.blob.map(([a, rr]) => ({ x: s.x + s.ox + Math.cos(a) * rr * .6 * g, y: s.y + s.oy + Math.sin(a) * rr * .6 * g }));
+  ctx.beginPath(); closedSmooth(ctx, p2); ctx.fillStyle = `rgba(${s.dark},.28)`; ctx.fill();
+  if (p > .08) {
+    const q = eo(clamp((p - .08) / .5));
+    ctx.fillStyle = `rgba(${s.col},.68)`;
+    for (const d of s.drops) {
+      ctx.beginPath(); ctx.ellipse(s.x + Math.cos(d.a) * d.d * q, s.y + Math.sin(d.a) * d.d * q, d.rad * (1 + d.el * .8), d.rad, d.a, 0, 6.283); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* ---------- text ---------- */
+function wrap(text, font, maxW) {
+  ctx.font = font;
+  const words = text.split(' '), out = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { out.push(cur); cur = w; } else cur = t; }
+  if (cur) out.push(cur);
+  return out;
+}
+function fit(text, size, maxW) {
+  let s = size;
+  while (s > 14) { ctx.font = `${s}px ${HEAD}`; if (ctx.measureText(text).width <= maxW) break; s -= 2; }
+  return s;
+}
+function revealLines(lines, x, y, font, lh, color, p, alpha, align) {
+  ctx.save(); ctx.font = font; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = `rgb(${color})`;
+  let total = 0; lines.forEach(l => total += l.length + 1);
+  const soft = 9, pos = p * (total + soft); let idx = 0;
+  lines.forEach((ln, li) => {
+    const yy = y + li * lh, lw = ctx.measureText(ln).width;
+    let cx = align === 'center' ? x - lw / 2 : x;
+    if (pos - idx - ln.length >= soft) { ctx.globalAlpha = alpha; ctx.fillText(ln, cx, yy); }
+    else if (pos > idx) {
+      for (let i = 0; i < ln.length; i++) {
+        const a = clamp((pos - idx - i) / soft);
+        const wch = ctx.measureText(ln[i]).width;
+        if (a > 0) { ctx.globalAlpha = alpha * a; ctx.fillText(ln[i], cx, yy + (1 - a) * 4); }
+        cx += wch;
+      }
+    }
+    idx += ln.length + 1;
+  });
+  ctx.restore();
+}
+
+/* ---------- layout ---------- */
+function layout() {
+  W = innerWidth; H = innerHeight; DPR = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const wide = W > H * 1.05;
+  let mh, mw, mcx, mcy, fs, hs, headY, capX, capW;
+  if (wide) {
+    mh = H * .84; mw = mh * .78; if (mw > W * .5) { mw = W * .5; mh = mw / .78; }
+    mcx = W * .68; mcy = H * .52;
+    fs = clamp(W * .0165, 17, 30); hs = clamp(W * .036, 28, 56);
+    headY = H * .26; capX = W * .06; capW = W * .34;
+  } else {
+    mh = Math.min(H * .5, W * 1.15); mw = mh * .78;
+    mcx = W / 2; mcy = H * .67;
+    fs = clamp(W * .046, 15, 22); hs = clamp(W * .085, 26, 40);
+    headY = H * .075 + hs; capX = W * .08; capW = W * .84;
+  }
+  L = { wide, mx: mcx - mw / 2, my: mcy - mh / 2, mw, mh, fs, hs, headY, capX, capW, capY: headY + hs * .35 + fs * 1.6 };
+  // coastline with a hand-drawn wobble
+  const r = rng(5); coastPts = [];
+  for (let i = 0; i < MAP.length; i++) {
+    const a = MAP[i], b = MAP[(i + 1) % MAP.length];
+    for (let j = 0; j < 4; j++) {
+      const t = j / 4, nxu = -(b[1] - a[1]), nyu = b[0] - a[0], l = Math.hypot(nxu, nyu) || 1, jit = j ? (r() - .5) * .014 : 0;
+      coastPts.push({ x: MX(lerp(a[0], b[0], t) + nxu / l * jit), y: MY(lerp(a[1], b[1], t) + nyu / l * jit) });
+    }
+  }
+  mapPath = new Path2D(); closedSmooth(mapPath, coastPts);
+  const tw = Math.ceil(mw * Math.min(DPR, 1.5)), th = Math.ceil(mh * Math.min(DPR, 1.5));
+  texR = makeWash('206,74,66', tw, th, 1); texB = makeWash('70,112,178', tw, th, 2); texN = makeWash('226,213,184', tw, th, 3);
+  paper = makePaper();
+}
+
+/* ---------- the story ---------- */
+function build() {
+  items = [];
+  const mw = L.mw, fs = L.fs, lh = fs * 1.38, cap = L;
+  const bodyFont = `italic 500 ${fs}px ${BODY}`;
+  const add = (a, b, fn) => items.push({ a, b, fn });
+  const fade = (t, f0, f1) => f1 == null ? 1 : 1 - prog(t, f0, f1);
+
+  const strokeItem = (ctrl, a, dur, col, w, seed, f0, f1) => {
+    const st = makeStroke(ctrl, { w, seed });
+    add(a, f1 == null ? INF : f1, t => drawStroke(st, eio(prog(t, a, a + dur)), fade(t, f0, f1), col));
+  };
+  const arrow = (ctrl, a, dur, col, w, seed, f0, f1) => {
+    const st = makeStroke(ctrl, { w, seed }), S = st.S, n = S.length, E = S[n - 1], B = S[Math.max(0, n - 4)];
+    let dx = E.x - B.x, dy = E.y - B.y; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    const Lh = w * 3.2;
+    const h1 = makeStroke([{ x: E.x - dx * Lh - dy * Lh * .6, y: E.y - dy * Lh + dx * Lh * .6 }, E], { w: w * .7, seed: seed + 1, seg: 4 });
+    const h2 = makeStroke([{ x: E.x - dx * Lh + dy * Lh * .6, y: E.y - dy * Lh - dx * Lh * .6 }, E], { w: w * .7, seed: seed + 2, seg: 4 });
+    add(a, f1 == null ? INF : f1, t => {
+      const p = eio(prog(t, a, a + dur)), al = fade(t, f0, f1);
+      drawStroke(st, p, al, col);
+      const hp = prog(p, .8, 1);
+      if (hp > 0) { drawStroke(h1, hp, al, col); drawStroke(h2, hp, al, col); }
+    });
+  };
+  const splat = (x, y, R, col, a, dur, seed, f0, f1, k = 1) => {
+    const s = makeSplat(x, y, R, col, seed);
+    add(a, f1 == null ? INF : f1, t => drawSplat(s, prog(t, a, a + dur), fade(t, f0, f1) * k));
+  };
+  const text = (lines, a, b, o) => {
+    add(a, b, t => revealLines(lines, o.x, o.y, o.font, o.lh, o.color, prog(t, a, a + o.dur), b < INF ? 1 - prog(t, b - .8, b) : 1, o.align || 'left'));
+  };
+  const caption = (str, a, b, color = INK) => {
+    text(wrap(str, bodyFont, cap.capW), a, b, { x: cap.capX, y: cap.capY, font: bodyFont, lh, color, dur: Math.min(5.2, str.length * .045) });
+  };
+  const heading = (str, a, b, col, seed) => {
+    const hs = fit(str, cap.hs, cap.capW), font = `${hs}px ${HEAD}`;
+    ctx.font = font; const wd = ctx.measureText(str).width;
+    text([str], a, b, { x: cap.capX, y: cap.headY, font, lh: hs, color: col, dur: 1.2 });
+    strokeItem([{ x: cap.capX, y: cap.headY + hs * .2 }, { x: cap.capX + wd * .5, y: cap.headY + hs * .12 }, { x: cap.capX + wd, y: cap.headY + hs * .22 }], a + .6, .9, col, hs * .1, seed, b - .8, b);
+  };
+  const city = (name, u, v, a, dx, dy, align) => {
+    const p = P(u, v);
+    add(a, INF, t => {
+      ctx.save(); ctx.globalAlpha = prog(t, a, a + .6); ctx.fillStyle = `rgb(${INK})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(3, L.mw * .008), 0, 7); ctx.fill();
+      ctx.font = `${fs * 1.05}px ${HEAD}`; ctx.textAlign = align; ctx.fillText(name, p.x + dx, p.y + dy); ctx.restore();
+    });
+  };
+  const mapScale = Math.min(W, H);
+
+  /* ===== Title (0 – 7) ===== */
+  const tfs = Math.min(W * .14, H * .2, 170);
+  text(['Korea, 1950'], 1.2, 7.3, { x: W / 2, y: H * .5, font: `${tfs}px ${HEAD}`, lh: tfs, color: INK, dur: 2, align: 'center' });
+  const subFont = `italic 500 ${tfs * .3}px ${BODY}`;
+  text(wrap('the summer the South almost fell', subFont, W * .8), 3, 7.3, { x: W / 2, y: H * .6, font: subFont, lh: tfs * .36, color: INK, dur: 2.2, align: 'center' });
+  strokeItem([{ x: W * .12, y: H * .72 }, { x: W * .35, y: H * .68 }, { x: W * .62, y: H * .75 }, { x: W * .9, y: H * .68 }], .4, 1.8, INK, mapScale * .05, 11, 6.3, 7.3);
+  strokeItem([{ x: W * .2, y: H * .79 }, { x: W * .5, y: H * .77 }, { x: W * .78, y: H * .8 }], 1.6, 1.4, INK, mapScale * .016, 12, 6.3, 7.3);
+  splat(W * .2, H * .3, mapScale * .08, RED, .8, .9, 21, 6.3, 7.3);
+  splat(W * .8, H * .32, mapScale * .08, BLUE, 1.2, .9, 22, 6.3, 7.3);
+  splat(W * .87, H * .66, mapScale * .04, RED, 2.2, .7, 23, 6.3, 7.3);
+  splat(W * .13, H * .64, mapScale * .04, BLUE, 2.0, .7, 24, 6.3, 7.3);
+
+  /* ===== 1945: a divided land (7 – 19) ===== */
+  strokeItem(coastPts.concat([coastPts[0], coastPts[1]]), 7.5, 3.6, INK, 5, 31);
+  heading('1945', 7.4, 18.6, INK, 41);
+  caption('After World War II, Korea was split along the 38th parallel. North and South each claimed the whole peninsula.', 7.8, 18.6);
+  strokeItem([P(.08, .425), P(.3, .415), P(.55, .426), P(.9, .418)], 11, 1.8, INK, mw * .014, 32);
+  const lblFont = `${fs * .95}px ${HEAD}`;
+  text(['38th parallel'], 12.8, 27, { x: MX(.5), y: MY(.405), font: lblFont, lh: fs, color: INK, dur: 1, align: 'center' });
+
+  /* ===== 25 June 1950: the invasion (19 – 29) ===== */
+  heading('25 June 1950', 19.2, 28.6, RED, 42);
+  caption('Before dawn on 25 June 1950, the North Korean army pours across the line with tanks and heavy artillery.', 19.6, 28.6);
+  const inv = [
+    [P(.26, .33), P(.27, .42), P(.25, .52), P(.28, .60)],
+    [P(.40, .30), P(.41, .44), P(.40, .56), P(.43, .65)],
+    [P(.55, .28), P(.55, .44), P(.57, .56), P(.58, .66)],
+    [P(.68, .30), P(.69, .44), P(.67, .55), P(.70, .62)]
+  ];
+  inv.forEach((c, i) => {
+    arrow(c, 20.3 + i * .35, 2.2, RED, mw * .045, 50 + i * 3, 28, 29.6);
+    splat(c[1].x, MY(.425), mw * .045, RED, 21.4 + i * .35, .7, 60 + i, 36, 38);
+  });
+
+  /* ===== Seoul falls (29 – 41) ===== */
+  heading('June – Aug 1950', 29.1, 41, RED, 43);
+  caption('Seoul, the capital, falls in just three days. The South\u2019s small, lightly armed army is forced into a desperate retreat.', 29.4, 35.4);
+  caption('By early August, the South holds only a small corner of the peninsula around the port of Pusan.', 35.5, 41);
+  city('Seoul', .31, .46, 29.4, 10, -8, 'left');
+  splat(MX(.31), MY(.46), mw * .065, RED, 30.2, .8, 70, 38, 42);
+  arrow([P(.24, .5), P(.20, .65), P(.26, .82), P(.36, .93)], 31, 2.6, RED, mw * .04, 80, 39, 41);
+  arrow([P(.40, .56), P(.42, .70), P(.46, .82), P(.50, .90)], 32, 2.6, RED, mw * .04, 83, 39, 41);
+  arrow([P(.62, .45), P(.60, .55), P(.58, .63), P(.57, .70)], 33.5, 2.4, RED, mw * .04, 86, 39.5, 41.2);
+  city('Pusan', .66, .81, 37, 11, 6, 'left');
+
+  /* ===== Pusan Perimeter (41 – 57) ===== */
+  heading('Aug – Sept 1950', 41.2, 56.6, BLUE, 44);
+  caption('The Pusan Perimeter. American, South Korean and other UN troops dig in along the Naktong River. General Walton Walker tells his men there will be no more retreat.', 41.5, 48.4);
+  caption('Day after day the attackers are thrown back, while supplies and fresh troops keep arriving through the harbor at Pusan.', 48.6, 56.6);
+  strokeItem([P(.74, .60), P(.66, .60), P(.60, .69), P(.55, .80), P(.50, .91), P(.47, .97)], 42, 3, BLUE, mw * .035, 90, 69, 71);
+  [[P(1.0, 1.0), P(.85, .92), P(.74, .85), P(.69, .82)], [P(.9, 1.05), P(.78, .97), P(.68, .9), P(.63, .84)], [P(.78, 1.08), P(.68, 1.0), P(.62, .93), P(.59, .86)]]
+    .forEach((c, i) => arrow(c, 45 + i * 2, 1.6, BLUE, mw * .018, 95 + i * 3, 58, 61));
+  const tg = [[.72, .60], [.66, .605], [.62, .65], [.58, .72], [.55, .79], [.52, .86], [.49, .93]];
+  for (let k = 0; k < 9; k++) {
+    const [tu, tv] = tg[k % 7], a = 44.3 + k * 1.35;
+    const su = tu - .14 - (k % 3) * .03, sv = tv - .16 + (k % 2) * .05;
+    arrow([P(su, sv), P(lerp(su, tu, .5) - .02, lerp(sv, tv, .5) + .02), P(tu - .015, tv - .015)], a, .8, RED, mw * .03, 100 + k, a + 1, a + 1.8);
+    splat(MX(tu), MY(tv), mw * .032, RED, a + .75, .5, 120 + k, a + 2.2, a + 3.4);
+    splat(MX(tu + .02), MY(tv + .03), mw * .022, BLUE, a + .95, .5, 140 + k, a + 2.6, a + 3.8);
+  }
+
+  /* ===== Inchon (57 – 72) ===== */
+  heading('15 Sept 1950', 57.2, 71.6, BLUE, 45);
+  caption('Then comes a gamble. At Inchon, far behind enemy lines, UN forces storm ashore in a daring amphibious landing.', 57.5, 64.4);
+  caption('Cut off from supplies, the North Korean army collapses. Seoul is retaken on 28 September, and the invaders are driven back across the 38th parallel.', 64.6, 71.6);
+  arrow([P(-.2, .60), P(-.02, .55), P(.12, .50), P(.215, .472)], 58, 2.2, BLUE, mw * .05, 200, 71, 72.4);
+  splat(MX(.23), MY(.47), mw * .075, BLUE, 60, .9, 201, 72, 74, .9);
+  splat(MX(.31), MY(.53), mw * .03, BLUE, 60.6, .6, 202, 70, 72);
+  city('Inchon', .23, .47, 60.4, -10, 6, 'right');
+  arrow([P(.60, .66), P(.55, .55), P(.47, .45), P(.38, .37)], 61.5, 2.6, BLUE, mw * .04, 210, 70.4, 72);
+  arrow([P(.68, .65), P(.64, .52), P(.58, .42), P(.52, .34)], 62.2, 2.6, BLUE, mw * .04, 213, 70.6, 72.2);
+  splat(MX(.31), MY(.46), mw * .06, BLUE, 66.5, .8, 220, 72, 75, .8);
+
+  /* ===== The South survived (72 – 82) ===== */
+  const bfs = L.wide ? clamp(W * .055, 40, 84) : clamp(W * .11, 36, 56);
+  const bigFont = `${bfs}px ${HEAD}`;
+  const bigLines = wrap('The South survived.', bigFont, cap.capW);
+  const bigLH = bfs * 1.05;
+  text(bigLines, 73, INF, { x: cap.capX, y: cap.headY, font: bigFont, lh: bigLH, color: BLUE, dur: 2.4 });
+  ctx.font = bigFont; const bw = Math.max(...bigLines.map(l => ctx.measureText(l).width));
+  const uy = cap.headY + (bigLines.length - 1) * bigLH + bfs * .22;
+  strokeItem([{ x: cap.capX, y: uy }, { x: cap.capX + bw * .5, y: uy - 4 }, { x: cap.capX + bw, y: uy + 3 }], 75.2, 1.2, BLUE, bfs * .1, 230);
+  const subY = cap.headY + (bigLines.length - 1) * bigLH + fs * 2.6;
+  const subLines = wrap('The war would grind on for three more years, ending with an armistice on 27 July 1953 \u2014 close to the 38th parallel where it began.', bodyFont, cap.capW);
+  text(subLines, 75.6, INF, { x: cap.capX, y: subY, font: bodyFont, lh, color: INK, dur: 5.2 });
+  [[.10, .16], [.92, .60], [.06, .86], [.84, .92], [.50, 1.02]].forEach((q, i) =>
+    splat(MX(q[0]), MY(q[1]), mw * (.035 + (i % 3) * .01), i % 2 ? BLUE : '90,130,196', 73.2 + i * .4, .8, 240 + i, null, null, .55));
+  L.endY = subY + subLines.length * lh;
+}
+
+/* ---------- rendering ---------- */
+function boundary(t) {
+  const inv = eo(prog(t, 29.5, 40.5)), rec = eio(prog(t, 61.5, 70.5));
+  const battle = prog(t, 43, 45) * (1 - prog(t, 56, 58));
+  const pts = [];
+  for (let i = 0; i <= 110; i++) {
+    const u = -.06 + i * (1.12 / 110), uu = clamp(u, 0, 1);
+    const pk = 1.1 - .52 * Math.exp(-Math.pow((uu - .70) / .2, 2));
+    const qi = clamp(inv * 1.4 - .4 * uu), qr = clamp(rec * 1.4 - .4 * uu);
+    const yI = .42 + (pk - .42) * eio(qi);
+    let y = yI + (.42 - yI) * eio(qr);
+    const motion = Math.sin(Math.PI * qi) + Math.sin(Math.PI * qr);
+    y += (.005 + .02 * motion) * wob(u * 6 + 1, 3);
+    if (Math.abs(uu - .62) < .3) y += battle * .012 * Math.sin(t * 2.3 + u * 18);
+    pts.push({ x: MX(u), y: MY(y) });
+  }
+  return pts;
+}
+
+function render(t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.globalAlpha = 1; ctx.drawImage(paper, 0, 0, W, H);
+  const mA = eio(prog(t, 8, 11.5));
+  if (mA > 0) {
+    let rA = lerp(.45, .9, prog(t, 19.5, 24)); rA = lerp(rA, .72, prog(t, 72, 76));
+    const bA = lerp(.65, .86, prog(t, 60, 72));
+    const bp = boundary(t), last = bp.length - 1;
+    const redReg = new Path2D(), blueReg = new Path2D(), bline = new Path2D();
+    const top = MY(-.3), bot = MY(1.3);
+    redReg.moveTo(bp[0].x, top); redReg.lineTo(bp[last].x, top);
+    for (let i = last; i >= 0; i--) redReg.lineTo(bp[i].x, bp[i].y);
+    redReg.closePath();
+    blueReg.moveTo(bp[0].x, bp[0].y);
+    for (let i = 1; i <= last; i++) blueReg.lineTo(bp[i].x, bp[i].y);
+    blueReg.lineTo(bp[last].x, bot); blueReg.lineTo(bp[0].x, bot); blueReg.closePath();
+    bline.moveTo(bp[0].x, bp[0].y); for (let i = 1; i <= last; i++) bline.lineTo(bp[i].x, bp[i].y);
+
+    ctx.save(); ctx.clip(mapPath); ctx.globalAlpha = mA; ctx.drawImage(texN, L.mx, L.my, L.mw, L.mh); ctx.restore();
+    const paintRegion = (reg, tex, a, col) => {
+      ctx.save(); ctx.clip(mapPath); ctx.clip(reg);
+      ctx.globalAlpha = mA * a; ctx.drawImage(tex, L.mx, L.my, L.mw, L.mh);
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = `rgba(${darken(col)},.30)`; ctx.globalAlpha = mA * .8; ctx.lineWidth = 11; ctx.stroke(mapPath);
+      ctx.lineWidth = 15; ctx.stroke(bline);
+      ctx.restore();
+    };
+    paintRegion(redReg, texR, rA, RED);
+    paintRegion(blueReg, texB, bA, BLUE);
+  }
+  for (const it of items) if (t >= it.a && t <= it.b) it.fn(t);
+}
+
+function placeButton() {
+  btn.style.left = L.capX + 'px';
+  btn.style.top = Math.min(H - 70, L.endY + L.fs * 1.2) + 'px';
+}
+function frame(now) {
+  const t = (now - t0) / 1000;
+  if (t >= END) { render(END); finished = true; placeButton(); btn.classList.add('show'); return; }
+  render(t); raf = requestAnimationFrame(frame);
+}
+function start() {
+  layout(); build(); placeButton();
+  finished = false; btn.classList.remove('show');
+  t0 = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+}
+btn.addEventListener('click', () => { btn.classList.remove('show'); t0 = performance.now(); finished = false; cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); });
+
+let rz;
+addEventListener('resize', () => {
+  clearTimeout(rz);
+  rz = setTimeout(() => { layout(); build(); placeButton(); if (finished) render(END); }, 200);
+});
+
+const fontsReady = (document.fonts && document.fonts.load)
+  ? Promise.race([
+      Promise.all([document.fonts.load('40px "Caveat Brush"'), document.fonts.load('italic 500 24px "Cormorant Garamond"')]).catch(() => {}),
+      new Promise(r => setTimeout(r, 2500))])
+  : Promise.resolve();
+fontsReady.then(start);
+})();
+</script>
+</body>
+</html>

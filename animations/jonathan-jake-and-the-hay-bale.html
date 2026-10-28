@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jake and the Hay Bale</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1c12}
+body{display:grid;place-items:center}
+.stage{position:relative;width:min(100vw,177.78vh);aspect-ratio:16/9;container-type:inline-size;overflow:hidden;background:#000}
+svg{display:block;width:100%;height:100%}
+.p{transform-box:fill-box;transform-origin:center}
+.paper{background:#f6ecd8;color:#3b2a1e;border-radius:2cqw .6cqw 2cqw .6cqw;box-shadow:.3cqw .4cqw 0 #0006;font-family:"Segoe Print","Bradley Hand","Chalkboard SE","Comic Sans MS",cursive}
+.cap{position:absolute;left:6%;right:6%;bottom:2.5%;padding:.9cqw 2cqw;text-align:center;font-weight:600;font-size:2.3cqw;line-height:1.3;transform:rotate(-.5deg)}
+.title{position:absolute;inset:0;display:grid;place-items:center;background:#e8c36a;transition:opacity .7s}
+.title h1{margin:0;padding:3cqw 5cqw;font-size:6cqw;text-align:center;transform:rotate(-2deg)}
+.title h1 small{display:block;font-size:2.4cqw;margin-top:1cqw;opacity:.7}
+#btn{position:absolute;left:50%;top:40%;translate:-50% 0;border:0;padding:1.2cqw 3cqw;font:700 3.4cqw "Segoe Print","Chalkboard SE","Comic Sans MS",cursive;color:#3b2a1e;background:#ffd23f;border-radius:1.5cqw .5cqw 1.5cqw .5cqw;box-shadow:.4cqw .5cqw 0 #0006;cursor:pointer;transform:rotate(2deg)}
+#btn:hover{background:#ffe27a}
+#btn[hidden]{display:none}
+</style></head><body>
+<div class="stage" id="stage">
+<svg viewBox="0 0 800 450">
+<defs>
+<filter id="cut" x="-10%" y="-10%" width="120%" height="125%"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="2" seed="3" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="3" result="d"/><feDropShadow in="d" dx="2" dy="3" stdDeviation="1.6" flood-color="#000" flood-opacity=".35"/></filter>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2"/><feColorMatrix type="saturate" values="0"/></filter>
+</defs>
+<rect width="800" height="450" fill="#bfe3f2"/>
+<circle cx="680" cy="70" r="34" fill="#ffd54a"/>
+<ellipse cx="150" cy="80" rx="60" ry="22" fill="#fff"/><ellipse cx="200" cy="68" rx="40" ry="22" fill="#fff"/>
+<ellipse cx="250" cy="370" rx="420" ry="90" fill="#8cc152"/><ellipse cx="700" cy="380" rx="300" ry="70" fill="#78b043"/>
+<g id="barn"></g>
+<rect y="360" width="800" height="90" fill="#7a5230"/><path d="M0 362H800" stroke="#a37444" stroke-width="4"/><path d="M0 395H800M0 428H800" stroke="#5e3d20" stroke-width="2"/>
+<g id="world"></g>
+<rect width="800" height="450" filter="url(#grain)" opacity=".13" style="mix-blend-mode:multiply;pointer-events:none"/>
+</svg>
+<div class="cap paper" id="cap"></div>
+<button id="btn" hidden>↻ Replay</button>
+<div class="title" id="title"><h1 class="paper">Jake and the Hay Bale<small>a cumulative story</small></h1></div>
+</div>
+<script>
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),all=Promise.all.bind(Promise);
+const world=$('#world'),cap=$('#cap'),barn=$('#barn'),stage=$('#stage');
+const G=360,P=283,PY=290,LY=110;
+const T=(a,o={})=>{const b={...a,...o};return`translate(${b.x}px,${b.y}px) rotate(${b.r}deg) scale(${b.f*b.s},${b.s})`};
+const SK='stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round"';
+function mk(svg,o){const a={x:900,y:G,r:0,s:1,f:1,...o};world.insertAdjacentHTML('beforeend',`<g ${SK} filter="url(#cut)" style="transform-origin:0 0;transform:${T(a)}">${svg}</g>`);a.el=world.lastElementChild;return a}
+async function go(a,t,dur,ease='ease-in-out'){const from=T(a);Object.assign(a,t);const to=T(a);const an=a.el.animate([{transform:from},{transform:to}],{duration:dur,easing:ease,fill:'forwards'});await an.finished;a.el.style.transform=to;an.cancel()}
+async function walk(a,x,y,dur,hop=10){const x0=a.x,y0=a.y,N=24,h=Math.max(2,Math.round(dur/320)),kf=[];for(let i=0;i<=N;i++){const k=i/N,b=Math.abs(Math.sin(Math.PI*k*h))*hop;kf.push({transform:T(a,{x:x0+(x-x0)*k,y:y0+(y-y0)*k-b})})}a.x=x;a.y=y;const an=a.el.animate(kf,{duration:dur,fill:'forwards'});await an.finished;a.el.style.transform=T(a);an.cancel()}
+const jump=(a,h=36)=>a.el.animate([{transform:T(a)},{transform:T(a,{y:a.y-h*.2}),offset:.15},{transform:T(a,{y:a.y-h}),offset:.5},{transform:T(a)}],{duration:520,easing:'ease-out'}).finished;
+const nudge=()=>bale.el.animate([{transform:T(bale)},{transform:T(bale,{r:-3,y:bale.y-3}),offset:.3},{transform:T(bale,{r:2}),offset:.6},{transform:T(bale)}],{duration:600,delay:250});
+async function jumpAll(l,n=2){for(let i=0;i<n;i++){nudge();await all(l.map(a=>jump(a)));await sleep(150)}}
+async function say(t){cap.textContent=t;cap.animate([{opacity:0,transform:'translateY(8px) rotate(-.5deg)'},{opacity:1,transform:'rotate(-.5deg)'}],250);await sleep(Math.max(2600,t.split(' ').length*380+900))}
+const star=(r1,r2,n)=>Array.from({length:n*2},(_,i)=>{const r=i%2?r2:r1,a=Math.PI*i/n;return(r*Math.sin(a)).toFixed(1)+','+(-r*Math.cos(a)).toFixed(1)}).join(' ');
+async function pop(x,y,t,c='#ffd23f',r=34){world.insertAdjacentHTML('beforeend',`<g ${SK} filter="url(#cut)" style="transform-origin:0 0;transform:translate(${x}px,${y}px) scale(0)"><polygon points="${star(r,r*.72,9)}" fill="${c}"/><text y="1" text-anchor="middle" dominant-baseline="central" font-size="${t.length>2?r*.4:r}" font-weight="800" fill="#3b2a1e" stroke="none" font-family="cursive">${t}</text></g>`);const g=world.lastElementChild,S=s=>`translate(${x}px,${y}px) scale(${s})`;await g.animate([{transform:S(0)},{transform:S(1.2),offset:.6},{transform:S(1)}],{duration:350,fill:'forwards'}).finished;await sleep(900);await g.animate([{opacity:1},{opacity:0}],{duration:300,fill:'forwards'}).finished;g.remove()}
+/* ---- paper characters (origin = feet, facing front or left) ---- */
+const H=o=>`<rect x="-9" y="-20" width="7" height="20" fill="${o.pants}"/><rect x="2" y="-20" width="7" height="20" fill="${o.pants}"/><rect x="-10" y="-4" width="9" height="4" fill="#4a3022"/><rect x="1" y="-4" width="9" height="4" fill="#4a3022"/>${o.dress?`<path d="M-9 -44H9L16 -8H-16z" fill="${o.shirt}"/>`:`<rect x="-11" y="-46" width="22" height="28" rx="4" fill="${o.shirt}"/>`}<rect x="-16" y="-44" width="6" height="20" rx="3" fill="${o.shirt}" transform="rotate(12 -13 -44)"/><rect x="10" y="-44" width="6" height="20" rx="3" fill="${o.shirt}" transform="rotate(-12 13 -44)"/><circle cx="0" cy="-56" r="12" fill="#f2c29b"/>${o.hat}<circle cx="-4" cy="-57" r="1.6" fill="#333"/><circle cx="4" cy="-57" r="1.6" fill="#333"/><path d="M-4 -51q4 4 8 0" stroke="#a33" stroke-width="1.5" fill="none"/>`;
+const OX=`<rect x="30" y="-28" width="9" height="28" fill="#6e4429"/><rect x="-38" y="-28" width="9" height="28" fill="#6e4429"/><rect x="-45" y="-72" width="90" height="48" rx="16" fill="#8a5a3a"/><rect x="18" y="-28" width="9" height="28" fill="#8a5a3a"/><rect x="-24" y="-28" width="9" height="28" fill="#8a5a3a"/><path d="M45 -60q14 6 10 30" stroke="#6e4429" stroke-width="4" fill="none"/><ellipse cx="-56" cy="-50" rx="17" ry="14" fill="#a06b46"/><ellipse cx="-66" cy="-45" rx="8" ry="6" fill="#e9b7a0"/><path d="M-60 -62q-8 -14 -18 -10q8 2 12 12z" fill="#f4ead0"/><path d="M-50 -62q2 -14 12 -16q-6 6 -6 18z" fill="#f4ead0"/><circle cx="-56" cy="-54" r="2" fill="#222"/>`;
+const LAMB=`<rect x="-14" y="-16" width="4" height="16" fill="#3a3030"/><rect x="8" y="-16" width="4" height="16" fill="#3a3030"/><g fill="#fffaf0"><circle cx="-14" cy="-26" r="11"/><circle cx="0" cy="-32" r="12"/><circle cx="14" cy="-26" r="11"/><circle cx="0" cy="-22" r="12"/></g><ellipse cx="-24" cy="-30" rx="8" ry="7" fill="#4a3c3c"/><ellipse cx="-20" cy="-38" rx="3" ry="6" fill="#4a3c3c" transform="rotate(30 -20 -38)"/><circle cx="-26" cy="-31" r="1.5" fill="#fff"/>`;
+const HORSE=`<rect x="26" y="-38" width="8" height="38" fill="#9c6a3a"/><rect x="-34" y="-38" width="8" height="38" fill="#9c6a3a"/><rect x="-40" y="-70" width="80" height="36" rx="16" fill="#c58b52"/><path d="M40 -64q16 10 8 36q-6 -14 -10 -28z" fill="#3a2418"/><path d="M-36 -58L-56 -98L-40 -104L-14 -62z" fill="#c58b52"/><ellipse cx="-58" cy="-98" rx="17" ry="9" fill="#b97d46" transform="rotate(35 -58 -98)"/><path d="M-42 -104L-24 -70L-20 -72L-38 -108z" fill="#3a2418"/><path d="M-48 -104l-4 -10l8 4z" fill="#b97d46"/><circle cx="-56" cy="-102" r="2" fill="#222"/><rect x="16" y="-38" width="8" height="38" fill="#c58b52"/><rect x="-24" y="-38" width="8" height="38" fill="#c58b52"/>`;
+const CAT=`<path d="M16 -14q20 -6 14 -26" stroke="#e08a3c" stroke-width="5" fill="none" stroke-linecap="round"/><ellipse cx="2" cy="-14" rx="18" ry="10" fill="#e08a3c"/><rect x="-12" y="-8" width="5" height="8" fill="#e08a3c"/><rect x="10" y="-8" width="5" height="8" fill="#e08a3c"/><circle cx="-18" cy="-22" r="9" fill="#e08a3c"/><path d="M-25 -28l2 -9l6 6zM-15 -30l5 -8l3 9z" fill="#e08a3c"/><path d="M-4 -22v8M2 -23v9M8 -22v8" stroke="#b96820" stroke-width="2"/><circle cx="-21" cy="-23" r="1.5" fill="#222"/>`;
+const MOUSE=`<path d="M10 -6q12 0 14 -8" stroke="#e7b5b5" stroke-width="2" fill="none"/><ellipse cx="0" cy="-6" rx="10" ry="6" fill="#9a9aa6"/><circle cx="-9" cy="-8" r="4.5" fill="#9a9aa6"/><circle cx="-7" cy="-13" r="3" fill="#e7b5b5"/><circle cx="-11" cy="-9" r="1" fill="#222"/>`;
+const BALE=`<rect x="-35" y="-23" width="70" height="46" rx="5" fill="#e3b448"/><path d="M-30 -12h14M-8 -4h18M12 -14h16M-24 8h16M6 10h20" stroke="#b9892a" stroke-width="2"/><rect x="-15" y="-23" width="4" height="46" fill="#8a6a3a"/><rect x="11" y="-23" width="4" height="46" fill="#8a6a3a"/>`;
+/* ---- barn (collapsible paper pieces) ---- */
+for(let i=0;i<16;i++)barn.insertAdjacentHTML('beforeend',`<rect class="p" x="${i*50}" y="0" width="50" height="${G+2}" fill="${i%2?'#b84a3a':'#a8402f'}" stroke="#7d2c20" stroke-opacity=".5"/>`);
+barn.insertAdjacentHTML('beforeend',`<g class="p" filter="url(#cut)"><rect x="330" y="25" width="140" height="110" fill="#6e4429"/><rect x="340" y="35" width="120" height="90" fill="#bfe3f2"/><ellipse cx="385" cy="75" rx="22" ry="10" fill="#fff"/><ellipse cx="410" cy="68" rx="18" ry="11" fill="#fff"/><path d="M400 35v90M340 80h120" stroke="#6e4429" stroke-width="5"/></g><g class="p" filter="url(#cut)"><rect x="500" y="${LY}" width="300" height="12" fill="#8a6540"/><rect x="515" y="${LY+12}" width="12" height="${G-LY-12}" fill="#7a5632"/><rect x="760" y="${LY+12}" width="12" height="${G-LY-12}" fill="#7a5632"/></g><g class="p" filter="url(#cut)" transform="translate(765 ${LY-18.4}) scale(.8)" ${SK}>${BALE}</g>`);
+/* ---- cast (back to front) ---- */
+const fulc=mk('<path d="M0 0L-42 70H42z" fill="#8a6540"/>',{x:400,y:-100});
+const plank=mk('<rect x="-280" y="-7" width="560" height="14" rx="2" fill="#c9965a"/><path d="M-250 -2h90M-100 3h120M60 -3h150" stroke="#9c6b3a" stroke-width="2"/>',{x:400,y:-60});
+const bale=mk(BALE,{x:170,y:-80}),carry=mk(BALE,{x:-60,y:G-92,s:.8});
+const ox=mk(OX,{s:.85}),lamb=mk(LAMB,{s:.9}),horse=mk(HORSE,{s:.8});
+const father=mk(H({pants:'#6b4a2b',shirt:'#3f8f5a',hat:'<path d="M-12 -62q12 -12 24 0z" fill="#556"/><path d="M-6 -52q6 -3 12 0" stroke="#3a2418" stroke-width="2.5" fill="none"/>'}),{s:1.12});
+const mother=mk(H({dress:1,pants:'#6b4a2b',shirt:'#8e5bb5',hat:'<circle cx="0" cy="-70" r="6" fill="#6b3b22"/><path d="M-12 -57a12 12 0 0 1 24 0q-12 -6 -24 0z" fill="#6b3b22"/>'}),{s:1});
+const jake=mk(H({pants:'#35507a',shirt:'#e4572e',hat:'<ellipse cx="0" cy="-64" rx="19" ry="4" fill="#d9a441"/><path d="M-11 -64a11 11 0 0 1 22 0z" fill="#e8b84f"/>'}),{x:-60});
+const balA=mk(BALE,{x:700,y:LY-18.4,s:.8}),balB=mk(BALE,{x:640,y:LY-18.4,s:.8});
+const cat=mk(CAT,{x:960,y:LY}),mouse=mk(MOUSE,{x:900,y:LY});
+/* ---- the story ---- */
+async function run(){
+await sleep(2600);const tt=$('#title');tt.style.opacity=0;setTimeout(()=>tt.remove(),800);await sleep(500);
+await all([say('Once upon a time there was a boy called Jake. He lived on a farm.'),walk(jake,255,G,1800)]);
+await all([say('One day he was in a barn. He was putting hay bales upstairs.'),(async()=>{await all([walk(jake,470,G,1700),walk(carry,470,G-92,1700)]);await go(carry,{x:570,y:LY-18.4,r:360},700);await walk(jake,255,G,1500)})()]);
+await all([say('On the third-last hay bale, he got an idea.'),pop(jake.x,G-110,'!')]);
+await all([say('“What if I jumped on a plank, with the hay bale on it, so it could go flying upstairs?” said Jake.'),(async()=>{await all([go(fulc,{y:PY},700,'ease-in'),go(plank,{y:PY},800,'ease-in')]);await go(bale,{y:P-23},600,'ease-in')})()]);
+await all([say('So Jake got a plank and the hay bale. He jumped, but the hay bale did not move.'),(async()=>{await walk(jake,650,P,1500,22);await jumpAll([jake])})()]);
+await all([say('So he went to get his father, and they jumped on the plank, but it did not move.'),(async()=>{await walk(father,525,P,1800);await jumpAll([jake,father])})()]);
+await all([say('So Jake’s father went to get Jake’s mother. All three jumped on the plank, but the hay bale did not move.'),(async()=>{await walk(mother,585,P,1800);await jumpAll([jake,father,mother])})()]);
+await all([say('So Jake’s mother got an ox, and Jake hopped on the ox. Jake, the ox, the mother and the father all jumped on the plank, but the hay bale did not move.'),(async()=>{await walk(ox,655,P,1800);await go(jake,{y:P-60},500);await jumpAll([ox,jake,mother,father])})()]);
+await all([say('So the ox got a lamb. Jake’s mother got on the lamb. They all jumped on the plank, but the hay bale did not move.'),(async()=>{await walk(lamb,585,P,1800);await go(mother,{y:P-38},500);await jumpAll([ox,jake,lamb,mother,father])})()]);
+await all([say('Just then a horse came to eat some hay. Jake’s father got an idea, so he hopped on the horse. They all jumped, but the hay bale did not move.'),(async()=>{await walk(horse,505,P,1800);await go(father,{x:505,y:P-54},500);await jumpAll([ox,jake,lamb,mother,horse,father])})()]);
+await all([say('Jake, Jake’s father, Jake’s mother, the ox, the lamb and the horse did not know what to do.'),pop(655,170,'?'),pop(585,205,'?'),pop(505,165,'?')]);
+await all([say('Jake suddenly got an idea. He was going to get his cat, but he didn’t know where his cat was.'),walk(ox,980,P,1800),walk(lamb,980,P,1800),walk(horse,980,P,1800),walk(mother,980,P-38,1800),walk(father,980,P-54,1800),(async()=>{await walk(jake,300,G,1500);await pop(300,G-110,'!');await pop(300,G-110,'?')})()]);
+const rp=(t,dx,dy)=>({x:400+dx*Math.cos(t)-dy*Math.sin(t),y:PY+dx*Math.sin(t)+dy*Math.cos(t)}),tl=14,tr=tl*Math.PI/180;
+await all([say('Just then Jake’s cat was chasing a mouse, and they knocked over one hay bale each onto the plank to launch the hay bale up into the sky.'),(async()=>{
+ walk(mouse,520,LY,2600,6);const pc=(async()=>{await sleep(500);await walk(cat,520,LY,2600,6)})();
+ await sleep(1300);await go(balA,{x:655,y:P-18.4,r:25},650,'cubic-bezier(.4,0,1,1)');
+ await sleep(450);await go(balB,{x:625,y:P-18.4,r:-10},650,'cubic-bezier(.4,0,1,1)');
+ go(plank,{r:tl},320,'ease-in');go(balA,{...rp(tr,255,-25.4),r:tl+25},320,'ease-in');go(balB,{...rp(tr,225,-25.4),r:tl-10},320,'ease-in');
+ await sleep(250);await go(bale,{x:330,y:-150,r:720},1200,'cubic-bezier(.2,.7,.4,1)');await pc})()]);
+await all([say('The hay bale went too high!'),pop(jake.x,G-110,'!','#ffd23f')]);await sleep(400);
+const crash=(async()=>{await go(bale,{x:400,y:G-20,r:1000},900,'cubic-bezier(.5,0,1,.7)');
+ stage.animate([{transform:'none'},{transform:'translate(-1.2%,.8%)'},{transform:'translate(1%,-.8%)'},{transform:'translate(-.6%,.4%)'},{transform:'none'}],{duration:500});
+ [...barn.children,cat.el,mouse.el].forEach(e=>e.animate([{translate:'0 0',rotate:'0deg'},{translate:`${(Math.random()-.5)*160}px ${480+Math.random()*80}px`,rotate:`${(Math.random()-.5)*90}deg`}],{duration:1100,delay:Math.random()*350,easing:'ease-in',fill:'forwards'}));
+ await pop(400,150,'CRASH!','#ff7a45',95)})();
+await all([say('The hay bale came back down and broke the barn.'),crash]);
+cap.textContent='The End';cap.animate([{opacity:0},{opacity:1}],400);
+const b=$('#btn');b.hidden=false;b.animate([{opacity:0,scale:.6},{opacity:1,scale:1}],{duration:400,easing:'ease-out'});b.onclick=()=>location.reload();
+}
+run();
+</script></body></html>

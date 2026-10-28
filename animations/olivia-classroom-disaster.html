@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Classroom Disaster</title>
+<style>
+  html,body{margin:0;height:100%;background:#2a2230;overflow:hidden}
+  #frame{position:absolute;left:50%;top:50%;width:1200px;height:720px;transform-origin:center center;overflow:hidden;background:#f4dc9c;box-shadow:0 10px 60px rgba(0,0,0,.5)}
+  #stage,#grain{position:absolute;left:0;top:0;width:1200px;height:720px}
+  #grain{pointer-events:none;mix-blend-mode:multiply}
+  #cap{position:absolute;left:90px;right:90px;bottom:24px;min-height:62px;padding:14px 30px 16px;box-sizing:border-box;background:#fffaf0;color:#3b2a20;
+       font:700 34px/1.3 "Comic Sans MS","Chalkboard SE","Marker Felt","Segoe Print",cursive,sans-serif;text-align:center;border-radius:14px;
+       box-shadow:5px 7px 0 rgba(60,30,10,.28);outline:3px dashed #e25a53;outline-offset:-9px;transform:rotate(-.4deg);opacity:0;transition:opacity .25s}
+  #cap.on{opacity:1}
+  #cap span{opacity:0;transition:opacity .15s}
+  #cap span.v{opacity:1}
+  #replay{position:absolute;left:440px;width:320px;bottom:44px;padding:14px 0 16px;border:6px solid #fffaf0;border-radius:44px;background:#ff7a59;color:#fff;
+          font:700 40px "Comic Sans MS","Chalkboard SE","Marker Felt","Segoe Print",cursive,sans-serif;cursor:pointer;
+          box-shadow:6px 8px 0 rgba(60,30,10,.35);opacity:0;pointer-events:none;transition:opacity .5s,transform .15s;transform:rotate(-2deg)}
+  #replay.show{opacity:1;pointer-events:auto}
+  #replay:hover{transform:rotate(1deg) scale(1.06)}
+  #replay:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div id="frame">
+  <svg id="stage" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="sh" x="-25%" y="-25%" width="150%" height="150%">
+        <feDropShadow dx="3" dy="5" stdDeviation="2" flood-color="#3c1e0a" flood-opacity=".38"/>
+      </filter>
+    </defs>
+  </svg>
+  <svg id="grain" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+    <filter id="gf" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4"/>
+      <feColorMatrix values="0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .15  0 0 0 .9 -.2"/>
+    </filter>
+    <rect width="1200" height="720" filter="url(#gf)" opacity=".22"/>
+  </svg>
+  <div id="cap"></div>
+  <button id="replay">&#8635; Replay</button>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/*  Basics                                                             */
+/* ------------------------------------------------------------------ */
+const NS='http://www.w3.org/2000/svg';
+const $=id=>document.getElementById(id);
+const FONT="'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe Print',cursive,sans-serif";
+const BIG="'Arial Black','Impact','Helvetica Neue',Arial,sans-serif";
+const EDGE='#fffaf0';          // the white paper edge
+const FY=560;                  // floor line where characters stand
+
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(p,attrs,str){const t=el('text',attrs,p);t.textContent=str;return t;}
+function shape(p,tag,attrs,fill,sw=3.5){return el(tag,Object.assign({},attrs,{fill,stroke:EDGE,'stroke-width':sw,'stroke-linejoin':'round','stroke-linecap':'round'}),p);}
+const path=(p,d,fill,sw)=>shape(p,'path',{d},fill,sw);
+const circ=(p,cx,cy,r,fill,sw)=>shape(p,'circle',{cx,cy,r},fill,sw);
+const ell=(p,cx,cy,rx,ry,fill,sw)=>shape(p,'ellipse',{cx,cy,rx,ry},fill,sw);
+const rect=(p,x,y,w,h,fill,sw,rx=4)=>shape(p,'rect',{x,y,width:w,height:h,rx},fill,sw);
+function rectS(p,x,y,w,h,fill,sw=3,rx=4){el('rect',{x:x+5,y:y+7,width:w,height:h,rx,fill:'rgba(60,30,10,.22)'},p);return rect(p,x,y,w,h,fill,sw,rx);}
+function limb(p,x1,y1,x2,y2,w,color){
+  el('line',{x1,y1,x2,y2,stroke:EDGE,'stroke-width':w+7,'stroke-linecap':'round'},p);
+  el('line',{x1,y1,x2,y2,stroke:color,'stroke-width':w,'stroke-linecap':'round'},p);
+}
+function starPath(n,r1,r2,seed=1){
+  let d='';
+  for(let i=0;i<n*2;i++){
+    const a=i*Math.PI/n, h=Math.abs(Math.sin((i+seed)*12.9898)*43758.5453)%1;
+    const r=(i%2?r1:r2)*(0.9+0.2*h);
+    d+=(i?'L':'M')+(Math.cos(a)*r).toFixed(1)+','+(Math.sin(a)*r).toFixed(1);
+  }
+  return d+'Z';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Stop-motion engine: everything updates at ~12 frames per second    */
+/* ------------------------------------------------------------------ */
+let CLOCK=0, acc=0, last=performance.now();
+const cuts=[], tweens=[];
+
+class Cut{
+  constructor(parent,o={}){
+    this.wrap=el('g',{},parent);
+    if(o.shadow!==false)this.wrap.setAttribute('filter','url(#sh)');
+    this.g=el('g',{},this.wrap);
+    this.x=o.x||0; this.y=o.y||0; this.r=o.r||0;
+    this.s=o.s===undefined?1:o.s; this.sx=o.sx||1; this.o=o.o===undefined?1:o.o;
+    this.jit=o.jit!==false; this.jx=0; this.jy=0; this.jr=0;
+    this.beh=null; this.bw=1; this.armA=0; this.arm=null; this.ax=0; this.ay=0;
+    cuts.push(this); this.render();
+  }
+  render(){
+    const b=this.beh?this.beh(CLOCK):null, w=this.bw;
+    const x=this.x+(b&&b.dx?b.dx*w:0)+(this.jit?this.jx:0);
+    const y=this.y+(b&&b.dy?b.dy*w:0)+(this.jit?this.jy:0);
+    const r=this.r+(b&&b.dr?b.dr*w:0)+(this.jit?this.jr:0);
+    const sxm=b&&b.sx!==undefined?b.sx:1;
+    this.g.setAttribute('transform','translate('+x.toFixed(1)+' '+y.toFixed(1)+') rotate('+r.toFixed(2)+') scale('+(this.sx*this.s*sxm).toFixed(3)+' '+this.s.toFixed(3)+')');
+    this.wrap.setAttribute('opacity',Math.max(0,Math.min(1,this.o)));
+    this.wrap.style.display=(this.o<=0||this.s<=0.001)?'none':'';
+    if(this.arm)this.arm.setAttribute('transform','rotate('+this.armA.toFixed(1)+' '+this.ax+' '+this.ay+')');
+  }
+  destroy(){const i=cuts.indexOf(this);if(i>=0)cuts.splice(i,1);this.wrap.remove();}
+}
+
+const linear=p=>p, easeIn=p=>p*p, easeOut=p=>1-(1-p)*(1-p);
+const easeInOut=p=>p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+const outBack=p=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(p-1,3)+c1*Math.pow(p-1,2);};
+
+function tween(obj,to,dur,ease=easeInOut){
+  return new Promise(res=>{
+    const from={};for(const k in to)from[k]=obj[k];
+    tweens.push({obj,from,to,dur,start:CLOCK,ease,res});
+  });
+}
+const wait=ms=>new Promise(res=>tweens.push({obj:{},from:{},to:{},dur:ms,start:CLOCK,ease:linear,res}));
+
+function tick(){
+  for(const c of cuts){if(c.jit){c.jx=(Math.random()-.5)*2.4;c.jy=(Math.random()-.5)*2.4;c.jr=(Math.random()-.5)*1.6;}}
+  for(let i=tweens.length-1;i>=0;i--){
+    const t=tweens[i];
+    const p=t.dur<=0?1:Math.min(1,(CLOCK-t.start)/t.dur);
+    const e=t.ease(p);
+    for(const k in t.to)t.obj[k]=t.from[k]+(t.to[k]-t.from[k])*e;
+    if(p>=1){tweens.splice(i,1);t.res();}
+  }
+  for(const c of cuts)c.render();
+}
+function frame(ts){
+  const dt=Math.max(0,Math.min(ts-last,200));last=ts;acc+=dt;
+  if(acc>=83){const n=Math.floor(acc/83);acc-=n*83;CLOCK+=n*83;tick();}
+  requestAnimationFrame(frame);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Faces and arms                                                     */
+/* ------------------------------------------------------------------ */
+function addFace(c,g,o){
+  const {ex,ey,gap=15,r=6.5,mx,my,mw=7,mh=7,mc='#6b2330'}=o;
+  circ(g,ex,ey,r,'#fff',2);circ(g,ex+gap,ey,r,'#fff',2);
+  circ(g,ex+r*.4,ey+.5,r*.5,'#2b1d1d',0);circ(g,ex+gap+r*.4,ey+.5,r*.5,'#2b1d1d',0);
+  const closed='M'+(mx-mw)+','+my+' Q'+mx+','+(my+mh)+' '+(mx+mw)+','+my;
+  const sadP='M'+(mx-mw)+','+(my+mh*.5)+' Q'+mx+','+(my-mh)+' '+(mx+mw)+','+(my+mh*.5);
+  const openP='M'+(mx-mw)+','+my+' Q'+mx+','+(my+mh*2.8)+' '+(mx+mw)+','+my+' Z';
+  const m=el('path',{d:closed,fill:'none',stroke:mc,'stroke-width':3,'stroke-linecap':'round','stroke-linejoin':'round'},g);
+  let open=false,sad=false;
+  const upd=()=>{m.setAttribute('d',open?openP:(sad?sadP:closed));m.setAttribute('fill',open?'#7a1f2b':'none');};
+  c.setMouth=v=>{open=v;upd();};
+  c.setSad=v=>{sad=v;upd();};
+}
+function addArm(c,g,o){
+  const a=el('g',{},g);
+  limb(a,o.sx,o.sy,o.sx+o.L,o.sy,o.w,o.color);
+  circ(a,o.sx+o.L,o.sy,o.w*0.62,o.hand||o.color,3);
+  c.arm=a;c.ax=o.sx;c.ay=o.sy;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Characters (all drawn facing right, feet at 0,0)                   */
+/* ------------------------------------------------------------------ */
+function makeGirl(p,o){
+  const c=new Cut(p,o),g=c.g,skin='#f1b98f',hair='#5a3622';
+  limb(g,-8,-112,-34,-72,12,skin);
+  rect(g,-21,-62,14,58,skin,3,6);rect(g,6,-62,14,58,skin,3,6);
+  ell(g,-12,-4,18,9,'#4b3f9a',3);ell(g,18,-4,18,9,'#4b3f9a',3);
+  path(g,'M-42,-54 L42,-54 L24,-128 L-24,-128 Z','#e84f7d');
+  path(g,'M-40,-54 L40,-54 L36,-66 L-36,-66 Z','#f7a8c0',0);
+  ell(g,-34,-138,11,17,hair);
+  circ(g,-6,-158,33,hair);
+  circ(g,0,-155,30,skin);
+  path(g,'M-30,-158 Q-4,-198 30,-166 Q12,-174 -2,-165 Q-16,-174 -30,-158 Z',hair,3);
+  addFace(c,g,{ex:7,ey:-154,mx:16,my:-140});
+  circ(g,24,-146,5,'#f48a8a',0).setAttribute('opacity',.6);
+  addArm(c,g,{sx:16,sy:-114,L:70,w:13,color:skin});
+  c.armA=70;c.pa=12;c.hy=-195;c.render();return c;
+}
+function makeKid(p,o,shirt,hair,skin){
+  const c=new Cut(p,o),g=c.g;
+  rect(g,-18,-60,13,58,skin,3,5);rect(g,5,-60,13,58,skin,3,5);
+  ell(g,-12,-4,16,8,'#3d3d55',3);ell(g,14,-4,16,8,'#3d3d55',3);
+  rect(g,-24,-130,48,76,shirt,3,10);
+  circ(g,0,-156,26,skin);
+  path(g,'M-27,-158 Q-4,-192 27,-160 Q8,-168 -2,-162 Q-14,-170 -27,-158 Z',hair,3);
+  addFace(c,g,{ex:6,ey:-157,gap:13,r:5.5,mx:14,my:-146,mw:6,mh:6});
+  addArm(c,g,{sx:12,sy:-120,L:62,w:12,color:skin});
+  c.armA=22;c.render();return c;
+}
+function makeDesk(p,o){
+  const c=new Cut(p,o),g=c.g;
+  rect(g,-50,-50,9,50,'#7d8597',3,3);rect(g,41,-50,9,50,'#7d8597',3,3);
+  rect(g,-52,-76,104,26,'#c58a52',3,3);
+  rect(g,-60,-88,120,12,'#e2b27a',3,3);
+  rect(g,-22,-102,36,14,'#4c9be8',2,2);rect(g,-22,-96,36,3,'#fffaf0',0,0);
+  return c;
+}
+function makeLion(p,o){
+  const c=new Cut(p,o),g=c.g,gold='#eeb445',light='#f6d27c',mane='#b5642a',mane2='#c8742f';
+  limb(g,-30,-72,-70,-98,9,gold);circ(g,-76,-106,12,mane,3);
+  rect(g,-26,-58,19,56,gold,3,7);rect(g,8,-58,19,56,gold,3,7);
+  ell(g,-16,-5,19,9,light,3);ell(g,19,-5,19,9,light,3);
+  ell(g,0,-100,40,52,gold,3.5);ell(g,8,-92,22,34,light,0);
+  for(let i=0;i<10;i++){const a=i/10*Math.PI*2;circ(g,10+Math.cos(a)*40,-158+Math.sin(a)*40,17,i%2?mane:mane2,3);}
+  circ(g,10,-158,38,mane2,0);
+  circ(g,-18,-190,10,gold,3);circ(g,-18,-190,5,'#f3a1a1',0);
+  circ(g,36,-192,10,gold,3);circ(g,36,-192,5,'#f3a1a1',0);
+  circ(g,10,-156,30,gold,3);
+  ell(g,28,-146,17,13,'#fbe3b0',2);
+  path(g,'M24,-155 L36,-155 L30,-147 Z','#6b3a2a',1.5);
+  addFace(c,g,{ex:10,ey:-166,gap:16,r:6,mx:30,my:-140,mw:7,mh:5});
+  addArm(c,g,{sx:16,sy:-112,L:110,w:17,color:gold,hand:light});
+  c.armA=70;c.pa=5;c.hy=-215;c.render();return c;
+}
+function makeGorilla(p,o){
+  const c=new Cut(p,o),g=c.g,dk='#45454f',md='#5b5b68',face='#c2ad9b';
+  limb(g,-20,-128,-52,-66,24,dk);circ(g,-54,-60,15,dk,3);
+  rect(g,-34,-52,28,50,dk,3,9);rect(g,8,-52,28,50,dk,3,9);
+  ell(g,-20,-5,24,10,md,3);ell(g,24,-5,24,10,md,3);
+  ell(g,0,-108,60,64,dk,3.5);ell(g,12,-100,36,44,md,0);
+  circ(g,-16,-180,9,dk,3);
+  circ(g,12,-178,33,dk,3);
+  ell(g,22,-172,23,21,face,2.5);
+  path(g,'M2,-190 Q22,-200 40,-190 L38,-184 Q22,-192 4,-184 Z',dk,2);
+  addFace(c,g,{ex:14,ey:-176,gap:16,r:5.5,mx:26,my:-158,mw:8,mh:5});
+  circ(g,22,-167,2,'#4a3a33',0);circ(g,30,-167,2,'#4a3a33',0);
+  addArm(c,g,{sx:24,sy:-132,L:110,w:24,color:dk,hand:dk});
+  c.armA=70;c.pa=10;c.hy=-215;c.render();return c;
+}
+function makeCroc(p,o){
+  const c=new Cut(p,o),g=c.g,gr='#5db056',dg='#4a9644';
+  path(g,'M-30,-48 Q-90,-62 -132,-18 Q-82,-34 -34,-84 Z',dg,3.5);
+  for(let i=0;i<3;i++)path(g,'M'+(-48-i*22)+','+(-58+i*8)+' l8,-12 l8,12 Z','#3d7f38',2);
+  rect(g,-24,-48,19,46,gr,3,7);rect(g,6,-48,19,46,gr,3,7);
+  ell(g,-14,-4,20,9,dg,3);ell(g,20,-4,20,9,dg,3);
+  ell(g,0,-100,44,60,gr,3.5);ell(g,10,-96,26,48,'#d9ecaa',0);
+  circ(g,-6,-198,12,gr,3);circ(g,18,-200,12,gr,3);
+  ell(g,8,-172,36,28,gr,3.5);
+  rect(g,24,-184,68,24,gr,3.5,12);
+  rect(g,26,-160,62,12,dg,3,6);
+  for(let i=0;i<4;i++)path(g,'M'+(36+i*14)+',-160 L'+(42+i*14)+',-149 L'+(48+i*14)+',-160 Z','#fff',1.5);
+  circ(g,-4,-198,6.5,'#fff',2);circ(g,-2,-198,3.2,'#222',0);
+  circ(g,20,-200,6.5,'#fff',2);circ(g,22,-200,3.2,'#222',0);
+  circ(g,86,-176,2.6,'#2f6a2d',0);
+  addArm(c,g,{sx:18,sy:-118,L:105,w:16,color:gr});
+  c.armA=70;c.pa=7;c.hy=-215;c.render();return c;
+}
+function makeMonster(p,o){
+  const c=new Cut(p,o),g=c.g,pu='#8f5fd0',lt='#c9a8f2';
+  limb(g,-36,-130,-70,-80,22,pu);
+  rect(g,-44,-44,28,42,pu,3,9);rect(g,16,-44,28,42,pu,3,9);
+  ell(g,-30,-6,28,12,'#6d3fb0',3);ell(g,32,-6,28,12,'#6d3fb0',3);
+  for(let i=0;i<18;i++){const a=i/18*Math.PI*2;circ(g,Math.cos(a)*68,-128+Math.sin(a)*86,15,pu,3);}
+  ell(g,0,-128,70,88,pu,0);ell(g,10,-106,42,52,lt,0);
+  path(g,'M-38,-205 L-52,-252 L-12,-214 Z','#fff0c2',3);
+  path(g,'M22,-212 L48,-254 L48,-206 Z','#fff0c2',3);
+  circ(g,0,-168,17,'#fff',2.5);circ(g,34,-170,17,'#fff',2.5);
+  circ(g,6,-167,8,'#222',0);circ(g,40,-169,8,'#222',0);
+  path(g,'M-6,-138 Q28,-98 62,-138 Z','#4a1a3a',3);
+  path(g,'M2,-138 L10,-124 L18,-137 L28,-122 L38,-137 L48,-124 L56,-138 Z','#fff',0);
+  addArm(c,g,{sx:34,sy:-128,L:115,w:22,color:pu,hand:lt});
+  c.armA=70;c.pa=5;c.hy=-258;c.render();return c;
+}
+function makeDevil(p,o){
+  const c=new Cut(p,o),g=c.g,dk='#3b2a28',pk='#e88a9d';
+  limb(g,-26,-40,-62,-26,9,dk);
+  rect(g,-17,-28,14,26,dk,3,5);rect(g,6,-28,14,26,dk,3,5);
+  ell(g,-8,-3,13,6,'#241716',2);ell(g,16,-3,13,6,'#241716',2);
+  ell(g,0,-64,34,42,dk,3);
+  path(g,'M-6,-92 Q12,-78 26,-92 L26,-52 Q8,-42 -8,-52 Z','#f4efe6',0);
+  ell(g,-12,-136,13,18,dk,3);ell(g,-12,-136,7,11,pk,0);
+  ell(g,30,-138,13,18,dk,3);ell(g,30,-138,7,11,pk,0);
+  ell(g,8,-112,36,30,dk,3);
+  addFace(c,g,{ex:6,ey:-118,gap:20,r:7,mx:24,my:-100,mw:12,mh:5,mc:'#f6a5b5'});
+  ell(g,40,-110,6,5,'#111',0);
+  addArm(c,g,{sx:16,sy:-76,L:85,w:14,color:dk,hand:dk});
+  c.armA=70;c.pa=0;c.hy=-150;c.render();return c;
+}
+function makeRhino(p,o){
+  const c=new Cut(p,o),g=c.g,gr='#a3a6b2',dk='#8d8f99';
+  limb(g,-128,-110,-150,-72,6,dk);circ(g,-152,-68,7,dk,2);
+  rect(g,-100,-56,30,54,dk,3,8);rect(g,-60,-56,30,54,dk,3,8);rect(g,30,-56,30,54,dk,3,8);rect(g,70,-56,30,54,dk,3,8);
+  ell(g,-20,-108,116,68,gr,3.5);ell(g,-10,-84,70,28,'#c6c8d2',0);
+  ell(g,68,-148,17,22,gr,3);ell(g,68,-148,9,13,'#f3a1b0',0);
+  ell(g,100,-100,60,52,gr,3.5);
+  path(g,'M132,-128 Q152,-170 194,-188 Q172,-142 160,-112 Z','#f3e6c4',3);
+  path(g,'M104,-146 Q112,-168 128,-176 Q124,-158 124,-142 Z','#f3e6c4',3);
+  addFace(c,g,{ex:92,ey:-118,gap:24,r:8,mx:128,my:-78,mw:14,mh:9});
+  circ(g,152,-96,3.5,'#555',0);
+  c.setSad(true);c.render();return c;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Classroom background (made of layered paper)                       */
+/* ------------------------------------------------------------------ */
+function buildBg(L){
+  el('rect',{width:1200,height:540,fill:'#f4dc9c'},L);
+  for(let x=0;x<1200;x+=90)el('rect',{x,y:0,width:45,height:540,fill:'#f8e6b0'},L);
+  // blackboard
+  rectS(L,60,125,430,230,'#9a6b3f',3,8);
+  rect(L,76,141,398,198,'#2f5f52',3,6);
+  txt(L,{x:275,y:232,'text-anchor':'middle','font-family':FONT,'font-size':58,'font-weight':700,fill:'#f4f1e6',opacity:.9},'2 + 2 = 4');
+  el('circle',{cx:275,cy:288,r:17,fill:'none',stroke:'#f4f1e6','stroke-width':3,opacity:.85},L);
+  el('circle',{cx:269,cy:283,r:2.2,fill:'#f4f1e6'},L);el('circle',{cx:281,cy:283,r:2.2,fill:'#f4f1e6'},L);
+  el('path',{d:'M266,292 Q275,300 284,292',fill:'none',stroke:'#f4f1e6','stroke-width':2.5,'stroke-linecap':'round'},L);
+  rect(L,96,339,358,12,'#c7a06a',2,3);
+  rect(L,120,331,26,8,'#fffaf0',0,2);rect(L,152,331,20,8,'#f48fb1',0,2);
+  // clock
+  circ(L,570,185,47,'#e25a53',4);circ(L,570,185,37,'#fffaf0',2);
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2;el('line',{x1:570+Math.sin(a)*29,y1:185-Math.cos(a)*29,x2:570+Math.sin(a)*34,y2:185-Math.cos(a)*34,stroke:'#3b2a20','stroke-width':2.5},L);}
+  el('line',{x1:570,y1:185,x2:570,y2:162,stroke:'#3b2a20','stroke-width':4,'stroke-linecap':'round'},L);
+  el('line',{x1:570,y1:185,x2:586,y2:193,stroke:'#3b2a20','stroke-width':4,'stroke-linecap':'round'},L);
+  // window
+  rectS(L,660,130,250,200,'#fffaf0',3,6);
+  rect(L,672,142,226,176,'#8fd3ee',2,4);
+  circ(L,852,182,26,'#ffd54a',2);
+  ell(L,730,200,34,15,'#fff',0);ell(L,756,192,26,14,'#fff',0);ell(L,710,194,20,11,'#fff',0);
+  path(L,'M672,318 L672,285 Q740,255 790,285 Q840,260 898,280 L898,318 Z','#7cc576',0);
+  rect(L,782,142,6,176,'#fffaf0',0,0);rect(L,672,228,226,6,'#fffaf0',0,0);
+  // poster
+  rectS(L,940,125,105,135,'#f48fb1',3,4);
+  txt(L,{x:992,y:178,'text-anchor':'middle','font-family':BIG,'font-size':40,fill:'#fff'},'ABC');
+  circ(L,992,218,18,'#ffd166',2);path(L,'M974,255 L992,228 L1010,255 Z','#4cc9a0',2);
+  // bunting
+  let d='';for(let x=-10;x<=1210;x+=20){d+=(d?'L':'M')+x+','+(34+26*Math.sin(x/170)).toFixed(1);}
+  el('path',{d,fill:'none',stroke:'#7a5a3a','stroke-width':3},L);
+  const fc=['#e25a53','#ffd166','#4cc9a0','#4c9be8','#f48fb1','#ff9f1c'];
+  for(let x=40,i=0;x<1200;x+=75,i++){const y=34+26*Math.sin(x/170);path(L,'M'+(x-24)+','+y.toFixed(1)+' L'+(x+24)+','+y.toFixed(1)+' L'+x+','+(y+46).toFixed(1)+' Z',fc[i%fc.length],2.5);}
+  // floor
+  el('rect',{x:0,y:520,width:1200,height:200,fill:'#c88a54'},L);
+  [548,580,618,662,708].forEach((y,i)=>{el('rect',{x:0,y,width:1200,height:3,fill:'#b9763f'},L);
+    for(let x=(i%2)*110+40;x<1200;x+=240)el('rect',{x,y:y-30>520?y-30:520,width:3,height:30,fill:'#b9763f'},L);});
+  rect(L,-10,506,1220,16,'#a86a3c',3,0);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Effects                                                            */
+/* ------------------------------------------------------------------ */
+let world,bgL,midL,fxL,uiL,W={};
+
+async function fx(text,x,y,o={}){
+  const size=o.size||96,c1=o.c1||'#ffd166',c2=o.c2||'#d62839',rot=o.rot===undefined?-6:o.rot,hold=o.hold||900;
+  const c=new Cut(fxL,{x,y,s:0,r:rot});
+  const w=text.length*size*.62,r2=Math.max(130,w*.62),r1=r2*.72;
+  const star=shape(c.g,'path',{d:starPath(12,r1,r2,text.length)},c1,5);
+  star.setAttribute('transform','scale(1,'+Math.min(1,size*.95/r2).toFixed(3)+')');
+  txt(c.g,{x:0,y:size*.34,'text-anchor':'middle','font-size':size,'font-weight':900,'font-family':BIG,fill:c2,stroke:EDGE,'stroke-width':size*.14,'paint-order':'stroke','stroke-linejoin':'round'},text);
+  await tween(c,{s:1},280,outBack);
+  await wait(hold);
+  await tween(c,{s:0},180,easeIn);
+  c.destroy();
+}
+async function bubble(text,x,y,hold=1400,size=46){
+  const c=new Cut(fxL,{x,y,s:0,r:-3});
+  const g=c.g,w=Math.max(120,text.length*size*.66+40),h=size+30,cy=-(h/2+26),yb=cy+h/2;
+  el('path',{d:'M-20,'+(yb-6)+' L10,0 L24,'+(yb-6)+' Z',fill:'#fffdf5',stroke:'#3b2a20','stroke-width':3.5,'stroke-linejoin':'round'},g);
+  el('ellipse',{cx:0,cy,rx:w/2,ry:h/2,fill:'#fffdf5',stroke:'#3b2a20','stroke-width':3.5},g);
+  txt(g,{x:0,y:cy+size*.34,'text-anchor':'middle','font-size':size,'font-weight':900,fill:'#d62839','font-family':BIG},text);
+  await tween(c,{s:1},260,outBack);
+  await wait(hold);
+  await tween(c,{s:0},200,easeIn);
+  c.destroy();
+}
+function shake(amp,ms){
+  const s0=CLOCK;
+  world.beh=t=>{const p=(t-s0)/ms;if(p>=1)return {};const d=1-p;return {dx:Math.sin(t/41)*amp*d,dy:Math.cos(t/33)*amp*d};};
+}
+async function arc(c,dx,dy,h,dur){
+  const y0=c.y;
+  const a=tween(c,{x:c.x+dx},dur,linear);
+  const b=(async()=>{await tween(c,{y:y0-h},dur*.45,easeOut);await tween(c,{y:y0+dy},dur*.55,easeIn);})();
+  await Promise.all([a,b]);
+}
+function puff(x,y,r=40,col='#fffaf0'){
+  const c=new Cut(fxL,{x,y,s:.3,shadow:false,jit:false});
+  circ(c.g,0,0,r,col,2.5);
+  tween(c,{s:1.5,o:0,y:y-40},700,easeOut).then(()=>c.destroy());
+}
+function bricks(){
+  const cols=['#c76b4a','#e0a07a','#f4dc9c','#b85c3e','#d98c5f'];
+  for(let i=0;i<14;i++){
+    const c=new Cut(fxL,{x:1090+Math.random()*60,y:300+Math.random()*200,r:Math.random()*90});
+    const w=22+Math.random()*26,h=14+Math.random()*16;
+    rect(c.g,-w/2,-h/2,w,h,cols[i%cols.length],2.5,2);
+    (async()=>{
+      const dur=900+Math.random()*500,ty=540+Math.random()*40;
+      tween(c,{r:c.r+(Math.random()<.5?-1:1)*(360+Math.random()*360)},dur,linear);
+      await arc(c,-(160+Math.random()*420),ty-c.y,100+Math.random()*160,dur);
+      await wait(900);await tween(c,{o:0},400,linear);c.destroy();
+    })();
+  }
+}
+function drop(c){
+  const d=new Cut(fxL,{x:c.x+22*c.sx,y:c.y+c.hy*c.s,shadow:false,jit:false});
+  path(d.g,'M0,-14 Q11,2 0,9 Q-11,2 0,-14 Z','#6ec6ff',2);
+  (async()=>{await arc(d,(Math.random()<.5?-1:1)*(25+Math.random()*30),60,28,700);d.destroy();})();
+}
+async function dropsFor(ms,members){
+  let t=0;while(t<ms){drop(members[Math.floor(Math.random()*members.length)]);await wait(450);t+=450;}
+}
+function confetti(){
+  const cols=['#e25a53','#ffd166','#4cc9a0','#4c9be8','#f48fb1','#ff9f1c','#9b5de5'];
+  for(let i=0;i<70;i++){
+    const c=new Cut(uiL,{x:Math.random()*1200,y:-40-Math.random()*260,r:Math.random()*360,shadow:false,jit:false});
+    const w=10+Math.random()*14,h=6+Math.random()*10;
+    rect(c.g,-w/2,-h/2,w,h,cols[i%cols.length],1.5,1);
+    tween(c,{y:790,r:c.r+(Math.random()<.5?-1:1)*(400+Math.random()*500),x:c.x+(Math.random()-.5)*160},2800+Math.random()*2200,linear).then(()=>c.destroy());
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Captions                                                           */
+/* ------------------------------------------------------------------ */
+async function say(text){
+  const cap=$('cap');
+  cap.innerHTML=text.split(' ').map(w=>'<span>'+w+'</span>').join(' ');
+  cap.classList.add('on');
+  for(const s of [...cap.children]){s.classList.add('v');await wait(220);}
+}
+
+/* ------------------------------------------------------------------ */
+/*  Movement helpers                                                   */
+/* ------------------------------------------------------------------ */
+const walkBeh=()=>t=>({dy:-Math.abs(Math.sin(t/120))*10,dr:Math.sin(t/120)*3});
+const hopBeh=()=>t=>({dy:-Math.abs(Math.sin(t/150))*70,dr:Math.sin(t/150)*6});
+async function walkTo(c,x,dur,face=1){c.sx=face;c.beh=walkBeh();await tween(c,{x},dur,linear);c.beh=null;}
+const pullBeh=(i,k)=>t=>{const s=Math.sin(t/240+i*.8);return {dx:-Math.abs(s)*7*k,dr:-11*k+s*3*k};};
+async function nudge(c){const x0=c.x;await tween(c,{x:x0-22},130,easeOut);await tween(c,{x:x0},170,easeIn);}
+async function nudgeWave(list,gap){for(const c of list){nudge(c);await wait(gap);}}
+
+/* ------------------------------------------------------------------ */
+/*  Scene set-up                                                       */
+/* ------------------------------------------------------------------ */
+function build(){
+  cuts.length=0;tweens.length=0;
+  const stage=$('stage');
+  [...stage.children].forEach(n=>{if(n.tagName!=='defs')n.remove();});
+  world=new Cut(stage,{shadow:false,jit:false});
+  bgL=el('g',{},world.g);midL=el('g',{},world.g);fxL=el('g',{},world.g);
+  uiL=el('g',{},stage);
+  buildBg(bgL);
+  W={};
+  // hole in the wall (hidden until the crash)
+  W.hole=new Cut(midL,{x:1200,y:520,s:0});
+  path(W.hole.g,'M0,-300 L-90,-280 L-115,-235 L-100,-200 L-130,-160 L-105,-120 L-130,-75 L-100,-35 L-118,0 L0,0 Z','#3a2c3f',4);
+  // classmates and desks (in the back row)
+  const kc=[['#4c9be8','#2b2b2b','#f1c9a5'],['#4cc9a0','#8b4a1e','#c98d63'],['#ffb703','#d9a441','#f4d2b0']];
+  W.kids=[170,330,490].map((x,i)=>makeKid(midL,{x,y:526,s:.85},kc[i][0],kc[i][1],kc[i][2]));
+  [170,330,490].forEach(x=>makeDesk(midL,{x,y:526,s:.85}));
+  // the cast (z-order: rhino at the back, devil at the front)
+  W.rhino=makeRhino(midL,{x:1420,y:FY,s:.9,sx:-1});
+  W.girl=makeGirl(midL,{x:-120,y:FY});
+  W.lion=makeLion(midL,{x:-400,y:FY});
+  W.gorilla=makeGorilla(midL,{x:-400,y:FY});
+  W.croc=makeCroc(midL,{x:-400,y:FY});
+  W.monster=makeMonster(midL,{x:-400,y:FY});
+  W.devil=makeDevil(midL,{x:-400,y:FY});
+}
+
+async function title(){
+  const c=new Cut(uiL,{x:600,y:300,s:0,r:-2});
+  const g=c.g;
+  rect(g,-430,-170,860,340,'#fffaf0',0,18);
+  el('rect',{x:-410,y:-150,width:820,height:300,rx:12,fill:'none',stroke:'#e25a53','stroke-width':4,'stroke-dasharray':'14 10'},g);
+  const t=(str,y,size,len,fill)=>txt(g,{x:0,y,'text-anchor':'middle','font-size':size,'font-weight':900,'font-family':BIG,fill,stroke:EDGE,'stroke-width':8,'paint-order':'stroke','stroke-linejoin':'round',textLength:len,lengthAdjust:'spacingAndGlyphs'},str);
+  t('The Classroom',-20,84,700,'#e25a53');
+  t('Disaster',108,128,520,'#2f7fb8');
+  await tween(c,{s:1},500,outBack);
+  await wait(2800);
+  await tween(c,{y:-430,r:6},600,easeIn);
+  c.destroy();
+}
+
+/* ------------------------------------------------------------------ */
+/*  The story                                                          */
+/* ------------------------------------------------------------------ */
+let running=false;
+async function story(){
+  if(running)return;running=true;
+  build();
+  $('cap').classList.remove('on');$('replay').classList.remove('show');
+  await wait(500);
+  await title();
+
+  const {girl,lion,gorilla,croc,monster,devil,rhino,hole,kids}=W;
+  const chain=[girl,lion,gorilla,croc,monster,devil];
+  const pull=(upTo,k=1)=>chain.slice(0,upTo+1).forEach((c,i)=>{
+    if(!c.beh){c.bw=0;tween(c,{bw:1},250);}
+    c.beh=pullBeh(i,k);tween(c,{armA:c.pa},250);
+  });
+  const relaxAll=(n)=>Promise.all(chain.slice(0,n+1).map(async c=>{await tween(c,{bw:0},300);c.beh=null;c.bw=1;}));
+  const gap=()=>wait(500);
+
+  /* 1 */
+  await Promise.all([say('One day a little girl came to class.'),walkTo(girl,640,3000)]);
+  await gap();
+
+  /* 2 */
+  await Promise.all([say('It was very normal until she heard big footsteps. She thought it was just her.'),(async()=>{
+    await wait(1400);
+    await tween(girl,{y:FY-16},150,easeOut);await tween(girl,{y:FY},150,easeIn);
+    shake(4,350);await wait(1100);shake(5,350);await wait(900);
+  })()]);
+  await gap();
+
+  /* 3 */
+  await Promise.all([say('But then THUMP THUMP! CRASH! KABOOM!'),(async()=>{
+    fx('THUMP',260,330,{size:88,c1:'#ffb703',c2:'#c1121f',rot:-8,hold:1100});shake(6,400);await wait(800);
+    fx('THUMP!',520,290,{size:96,c1:'#8ecae6',c2:'#023e8a',rot:5,hold:1100});shake(9,450);await wait(900);
+    fx('CRASH!',800,260,{size:110,c1:'#ef476f',c2:'#fff3c4',rot:-5,hold:1100});shake(15,500);await wait(900);
+    shake(24,800);await fx('KABOOM!',600,310,{size:150,c1:'#ffd166',c2:'#d00000',rot:3,hold:900});
+  })()]);
+  await gap();
+
+  /* 4 */
+  await Promise.all([say('Then she realised it was real. Everybody left, screaming!'),(async()=>{
+    girl.setMouth(true);tween(girl,{armA:-70},250);
+    fx('AAAAH!',330,230,{size:78,c1:'#b8f2e6',c2:'#7b2cbf',rot:4,hold:1500});
+    await Promise.all(kids.map(async(k,i)=>{
+      await wait(300+i*350);
+      k.setMouth(true);tween(k,{armA:-85},200);
+      k.sx=-1;k.beh=t=>({dy:-Math.abs(Math.sin(t/90))*14,dr:Math.sin(t/90)*5});
+      await tween(k,{x:-230},1900,linear);k.beh=null;
+    }));
+  })()]);
+  girl.setMouth(false);
+  await gap();
+
+  /* 5 */
+  await Promise.all([say('Then BOOM! A rhino came crashing in and got stuck in the classroom.'),(async()=>{
+    shake(32,1000);
+    fx('BOOM!',760,300,{size:150,c1:'#ff9f1c',c2:'#fff3c4',rot:-4,hold:1100});
+    tween(hole,{s:1},300,outBack);
+    bricks();
+    for(let i=0;i<8;i++)puff(1060+Math.random()*120,330+Math.random()*180,36+Math.random()*30);
+    await tween(rhino,{x:1120},450,easeOut);
+    rhino.beh=t=>({dx:Math.sin(t/240)*2.5,dr:Math.sin(t/240)*1.2});
+    await wait(2800);
+  })()]);
+  await gap();
+
+  /* 6 */
+  await Promise.all([say('\u201COH NOO!\u201D she screamed. She had to save it.'),(async()=>{
+    bubble('OH NOO!',girl.x+20,girl.y-215,1500);
+    girl.setMouth(true);await wait(1600);girl.setMouth(false);
+    await walkTo(girl,900,1200);
+  })()]);
+  await gap();
+
+  /* 7 */
+  await Promise.all([say('She pulled and pulled. It didn\u2019t budge, not a single movement.'),(async()=>{
+    pull(0);await dropsFor(3600,[girl]);
+  })()]);
+  await relaxAll(0);
+  await gap();
+
+  /* 8 */
+  await Promise.all([say('Then somehow a lion passed. She screamed, \u201CHELP!\u201D The lion started to pull. Still nothing.'),(async()=>{
+    const walk=walkTo(lion,770,3200);
+    await wait(1500);
+    bubble('HELP!',girl.x+20,girl.y-215,1300);girl.setMouth(true);await wait(1400);girl.setMouth(false);
+    await walk;
+    pull(1);await dropsFor(1800,[girl,lion]);
+  })()]);
+  await relaxAll(1);
+  await gap();
+
+  /* 9 */
+  await Promise.all([say('Then he jumped for joy to see his friend Gorilla. Then they pulled. But still nothing.'),(async()=>{
+    const walk=walkTo(gorilla,635,2800);
+    await wait(300);
+    lion.setMouth(true);tween(lion,{armA:-80},200);
+    lion.beh=hopBeh();await wait(1300);lion.beh=null;lion.setMouth(false);
+    await walk;
+    pull(2);await dropsFor(1800,[girl,lion,gorilla]);
+  })()]);
+  await relaxAll(2);
+  await gap();
+
+  /* 10 */
+  await Promise.all([say('The gorilla pulled on the lion and the lion tugged the girl. But still they did not give up.'),(async()=>{
+    pull(2,1.3);
+    await wait(500);
+    await nudgeWave([gorilla,lion,girl],900);
+    await dropsFor(1500,[girl,lion,gorilla]);
+  })()]);
+  await relaxAll(2);
+  await gap();
+
+  /* 11 */
+  await Promise.all([say('But then the Gorilla pounded his chest and saw his crocodile friend. Then they pulled and pulled. It did not move.'),(async()=>{
+    const walk=walkTo(croc,490,3400);
+    gorilla.setMouth(true);
+    for(let i=0;i<4;i++){await tween(gorilla,{armA:20},180,linear);await tween(gorilla,{armA:130},180,linear);}
+    gorilla.setMouth(false);
+    await walk;
+    pull(3);await dropsFor(1600,[girl,lion,gorilla,croc]);
+  })()]);
+  await relaxAll(3);
+  await gap();
+
+  /* 12 */
+  await Promise.all([say('The crocodile pulled the Gorilla, the Gorilla pulled the Lion, the Lion pulled the Girl.'),(async()=>{
+    pull(3,1.2);
+    await nudgeWave([croc,gorilla,lion,girl],800);
+    await wait(300);
+  })()]);
+  await relaxAll(3);
+  await gap();
+
+  /* 13a */
+  await Promise.all([say('Then the crocodile twisted and turned and got his friend Monster.'),(async()=>{
+    const walk=walkTo(monster,355,3400);
+    for(let i=0;i<2;i++){await tween(croc,{sx:-1},350);await tween(croc,{sx:1},350);}
+    await walk;
+  })()]);
+  await gap();
+
+  /* 13b */
+  await Promise.all([say('Monster came, then he pulled the crocodile. The crocodile pulled the Gorilla, and Gorilla pulled the lion, the lion pulled the girl, and still they could not pull the rhino.'),(async()=>{
+    pull(4,1.25);
+    await wait(600);
+    await nudgeWave([monster,croc,gorilla,lion,girl],800);
+    await dropsFor(3000,chain.slice(0,5));
+  })()]);
+  await relaxAll(4);
+  await gap();
+
+  /* 14 */
+  await Promise.all([say('Then Monster hopped away to the Tasmanian devil, and he started pulling Monster.'),(async()=>{
+    monster.sx=-1;monster.beh=hopBeh();
+    const away=tween(monster,{x:-260},1500,linear);
+    await wait(900);
+    devil.sx=1;
+    devil.beh=t=>({sx:Math.cos(t/55),dy:-Math.abs(Math.sin(t/110))*14,dr:Math.sin(t/70)*12});
+    const spin=(async()=>{
+      const iv=[];let n=0;
+      const go=tween(devil,{x:225},1600,linear);
+      (async()=>{while(n<7){puff(devil.x-20,FY-10,26,'#d8d2c8');n++;await wait(220);}})();
+      await go;devil.beh=null;devil.sx=1;
+    })();
+    await away;
+    monster.sx=1;
+    await tween(monster,{x:355},1400,linear);
+    monster.beh=null;
+    await spin;
+    pull(5);await wait(900);
+  })()]);
+  await gap();
+
+  /* 15 */
+  await Promise.all([say('Monster pulled the crocodile, then he pulled the Gorilla, then he pulled the lion, he pulled the girl, then BOOM!'),(async()=>{
+    pull(5,1.4);
+    rhino.beh=t=>({dx:Math.sin(t/120)*5,dr:Math.sin(t/120)*2.5});
+    await wait(500);
+    await nudgeWave([devil,monster,croc,gorilla,lion,girl],750);
+    shake(5,1200);
+    await wait(900);
+  })()]);
+
+  /* 16 - the pop! */
+  const tumble=async(c,delay)=>{
+    await wait(delay);
+    c.beh=null;c.bw=1;c.setMouth(true);
+    tween(c,{armA:-85},300);
+    await tween(c,{r:-82,x:c.x-110,y:c.y+26},700,easeOut);
+  };
+  await Promise.all([say('Then the rhino popped out!'),(async()=>{
+    chain.forEach(c=>{c.beh=null;c.bw=1;});
+    rhino.beh=null;rhino.setSad(false);
+    fx('BOOM!',640,280,{size:170,c1:'#ffd166',c2:'#d00000',rot:-3,hold:1100});
+    shake(34,1300);
+    for(let i=0;i<10;i++)puff(1060+Math.random()*120,400+Math.random()*120,40+Math.random()*30);
+    midL.appendChild(rhino.wrap);
+    tween(rhino,{r:-360},1500,linear);
+    chain.forEach((c,i)=>tumble(c,i*150));
+    await arc(rhino,-470,0,330,1500);
+    rhino.r=0;
+    shake(10,400);
+    for(let i=0;i<5;i++)puff(rhino.x-60+Math.random()*120,FY-20,34);
+    rhino.setMouth(true);
+    await wait(900);
+  })()]);
+  rhino.setMouth(false);
+  await wait(500);
+  $('cap').classList.remove('on');
+
+  /* 17 - The End */
+  const sign=new Cut(uiL,{x:600,y:250,s:0,r:-3});
+  rect(sign.g,-300,-110,600,220,'#fffaf0',0,20);
+  el('rect',{x:-282,y:-92,width:564,height:184,rx:12,fill:'none',stroke:'#2f7fb8','stroke-width':4,'stroke-dasharray':'14 10'},sign.g);
+  txt(sign.g,{x:0,y:42,'text-anchor':'middle','font-size':120,'font-weight':900,'font-family':BIG,fill:'#e25a53',stroke:EDGE,'stroke-width':8,'paint-order':'stroke','stroke-linejoin':'round',textLength:500,lengthAdjust:'spacingAndGlyphs'},'THE END');
+  await tween(sign,{s:1},600,outBack);
+  confetti();
+  await wait(3200);
+  $('replay').classList.add('show');
+  running=false;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Start                                                              */
+/* ------------------------------------------------------------------ */
+function fit(){const s=Math.min(innerWidth/1200,innerHeight/720);$('frame').style.transform='translate(-50%,-50%) scale('+s+')';}
+addEventListener('resize',fit);fit();
+$('replay').addEventListener('click',()=>{$('replay').classList.remove('show');story();});
+build();
+requestAnimationFrame(frame);
+story();
+</script>
+</body>
+</html>

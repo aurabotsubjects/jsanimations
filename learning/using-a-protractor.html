@@ -1,0 +1,799 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Using a Protractor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one graph-paper stage (canvas) on top, transport controls under it, the words for the current step below that, then seven step buttons that jump the animation to that step. */
+:root {
+  --bg: #f6f9fb;
+  --fg: #14263a;
+  --paper: #eef3f6;
+  --grid: #d5e0e7;
+  --ink: #14263a;
+  --muted: #566b7e;
+  --accent: #d9480f;
+  --on-accent: #ffffff;
+  --good: #1b7f4a;
+  --surface: #ffffff;
+  --line: #c4d2db;
+  --plastic: rgba(60, 170, 190, 0.20);
+  --plastic-edge: #2a8ea3;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b141c;
+    --fg: #e7eff5;
+    --paper: #0f1c27;
+    --grid: #1a2c3a;
+    --ink: #e7eff5;
+    --muted: #93a8ba;
+    --accent: #ff9248;
+    --on-accent: #1a0e04;
+    --good: #52d08b;
+    --surface: #132330;
+    --line: #2a4252;
+    --plastic: rgba(90, 200, 225, 0.15);
+    --plastic-edge: #55c4da;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b141c;
+  --fg: #e7eff5;
+  --paper: #0f1c27;
+  --grid: #1a2c3a;
+  --ink: #e7eff5;
+  --muted: #93a8ba;
+  --accent: #ff9248;
+  --on-accent: #1a0e04;
+  --good: #52d08b;
+  --surface: #132330;
+  --line: #2a4252;
+  --plastic: rgba(90, 200, 225, 0.15);
+  --plastic-edge: #55c4da;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; flex-direction: column; gap: 4px; }
+.eyebrow {
+  margin: 0; font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(28px, 5vw, 40px); line-height: 1.1; text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); max-width: 65ch; }
+
+.stage { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--paper); }
+canvas { display: block; width: 100%; height: auto; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+button {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--fg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-width: 88px; }
+.scrub-wrap { display: flex; align-items: center; gap: 10px; flex: 1 1 220px; min-width: 0; }
+#scrub { flex: 1; min-width: 0; accent-color: var(--accent); }
+.time { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.opt { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+select {
+  font: inherit; font-size: 14px; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
+}
+
+.caption { min-height: 9.5rem; display: flex; flex-direction: column; gap: 4px; }
+.stepno { margin: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.caption h2 { margin: 0; font-family: var(--font-display); font-size: 24px; line-height: 1.2; text-wrap: balance; }
+.caption p.body { margin: 0; max-width: 65ch; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+@media (min-width: 820px) { .steps { grid-template-columns: repeat(7, 1fr); } }
+.steps button {
+  width: 100%; height: 100%; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  font-size: 13px; font-weight: 500; padding: 8px 10px; line-height: 1.3;
+}
+.steps .n { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-weight: 600; }
+.steps button.done { border-color: var(--good); }
+.steps button[aria-current="step"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.steps button[aria-current="step"] .n { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Maths · Angles</p>
+    <h1>Using a protractor</h1>
+    <p class="lede">A 30-second walkthrough. First measure an angle, then draw one. Press Play, drag the slider, or tap a step.</p>
+  </header>
+
+  <figure class="stage">
+    <canvas id="c" role="img" aria-label="Animated demonstration of measuring an angle and then drawing an angle with a protractor"></canvas>
+  </figure>
+
+  <div class="controls">
+    <button id="play" class="primary" type="button">Pause</button>
+    <button id="restart" type="button">Restart</button>
+    <div class="scrub-wrap">
+      <input id="scrub" type="range" min="0" max="30" step="0.01" value="0" aria-label="Animation position">
+      <span id="time" class="time">0:00 / 0:30</span>
+    </div>
+    <label class="opt" for="speed">Speed
+      <select id="speed">
+        <option value="1">Normal</option>
+        <option value="0.5">Slow (half speed)</option>
+      </select>
+    </label>
+    <label class="opt" for="loop"><input id="loop" type="checkbox"> Loop</label>
+  </div>
+
+  <section class="caption" aria-live="off">
+    <p id="stepno" class="stepno">Step 1 of 7</p>
+    <h2 id="steptitle">Find the angle</h2>
+    <p id="stepbody" class="body"></p>
+  </section>
+
+  <ol id="steps" class="steps"></ol>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOTAL = 30;
+  var STEPS = [
+    { t: 0,    short: 'Find the angle',        title: 'Find the angle',
+      body: 'An angle is the gap between two arms that meet at a point called the vertex. Decide which angle you are measuring before you pick up the protractor.' },
+    { t: 4.5,  short: 'Centre on the vertex',  title: 'Put the centre point on the vertex',
+      body: 'Slide the protractor over the angle so the small cross in the middle of its straight edge (the centre point) sits exactly on the vertex.' },
+    { t: 8.5,  short: 'Line up the 0 line',    title: 'Line up the 0 line with one arm',
+      body: 'Keep the centre point on the vertex and turn the protractor until its straight edge, the 0–180 line, lies along one arm.' },
+    { t: 12.5, short: 'Read up from 0',        title: 'Read up from 0',
+      body: 'Find the 0 that the arm passes through (the 0 on the right here). Count up that same row of numbers until you reach the other arm.',
+      alt: { from: 16.4, body: 'The angle is 55°. The other row of numbers starts at the opposite 0, so it would wrongly give 125°. Always count from the 0 that is on your arm.' } },
+    { t: 19,   short: 'Set up to draw',        title: 'Set up to draw 40°',
+      body: 'Draw a straight line and mark the vertex on it. Put the centre point on the vertex and the 0 line along your line, with the 0 on the side your line points to.' },
+    { t: 22.5, short: 'Count and mark',        title: 'Count up from 0 and mark it',
+      body: 'Start at 0 and count up the same row of numbers to 40. Make a small dot at 40.' },
+    { t: 26.5, short: 'Join the points',       title: 'Join the vertex to the mark',
+      body: 'Take the protractor away. Use a ruler to draw a straight line from the vertex through the dot, then label the angle 40°.' }
+  ];
+
+  var F_D = '"Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif';
+  var F_B = '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif';
+  var F_M = '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace';
+  var D2R = Math.PI / 180;
+
+  var clamp = function (x, a, b) { return Math.min(b, Math.max(a, x)); };
+  var seg = function (t, a, b) { return clamp((t - a) / (b - a), 0, 1); };
+  var easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+  var easeOut = function (x) { return 1 - Math.pow(1 - x, 3); };
+  var lerp = function (a, b, x) { return a + (b - a) * x; };
+  var vis = function (t, a, b) { return seg(t, a, a + 0.4) * (1 - seg(t, b, b + 0.4)); };
+  var pt = function (c, r, a) { return { x: c.x + r * Math.cos(a), y: c.y - r * Math.sin(a) }; };
+  var toWorld = function (c, rot, x, y) {
+    return { x: c.x + x * Math.cos(rot) + y * Math.sin(rot), y: c.y - x * Math.sin(rot) + y * Math.cos(rot) };
+  };
+
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var C = {};
+  var L = { W: 800, H: 500, panel: true, f: 1 };
+
+  function readColors() {
+    var cs = getComputedStyle(document.documentElement);
+    var g = function (n) { return cs.getPropertyValue(n).trim(); };
+    C = {
+      paper: g('--paper'), grid: g('--grid'), ink: g('--ink'), muted: g('--muted'),
+      accent: g('--accent'), good: g('--good'), surface: g('--surface'), line: g('--line'),
+      plastic: g('--plastic'), edge: g('--plastic-edge')
+    };
+  }
+
+  function txt(s, x, y, font, color, align, alpha) {
+    ctx.save();
+    if (alpha !== undefined) ctx.globalAlpha *= alpha;
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(s, x, y);
+    ctx.restore();
+  }
+
+  function ray(c, len, deg, color, w) {
+    var e = pt(c, len, deg * D2R);
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(e.x, e.y);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  function dot(p, r, color) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function ring(p, r, color, w, alpha) {
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ---------- protractor ---------- */
+  function drawProtractor(c, rot, alpha, o) {
+    var R = 200, f = L.f, d, a, ca, sa;
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.translate(c.x, c.y);
+    ctx.rotate(-rot);
+
+    // plastic body
+    ctx.beginPath();
+    ctx.moveTo(-R - 14, 0);
+    ctx.arc(0, 0, R, Math.PI, 2 * Math.PI);
+    ctx.lineTo(R + 14, 0);
+    ctx.lineTo(R + 14, 24);
+    ctx.lineTo(-R - 14, 24);
+    ctx.closePath();
+    ctx.fillStyle = C.plastic;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = C.edge;
+    ctx.stroke();
+
+    // inner cut-out arc
+    ctx.beginPath();
+    ctx.arc(0, 0, 48, Math.PI, 2 * Math.PI);
+    ctx.lineWidth = 1;
+    ctx.globalAlpha *= 0.6;
+    ctx.stroke();
+    ctx.globalAlpha /= 0.6;
+
+    // ticks (1 degree, 5 degrees, 10 degrees)
+    var tick = function (deg, len) {
+      var ra = deg * D2R;
+      ctx.moveTo(Math.cos(ra) * R, -Math.sin(ra) * R);
+      ctx.lineTo(Math.cos(ra) * (R - len), -Math.sin(ra) * (R - len));
+    };
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (d = 0; d <= 180; d++) { if (d % 5 !== 0) tick(d, 7); }
+    ctx.stroke();
+    ctx.beginPath();
+    for (d = 5; d < 180; d += 10) tick(d, 12);
+    ctx.stroke();
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (d = 0; d <= 180; d += 10) tick(d, 18);
+    ctx.stroke();
+
+    // numbers: outer row counts up from the right, inner row from the left
+    var hi = o.hi || 0;
+    var sweep = (o.sweep === undefined || o.sweep === null) ? -1 : o.sweep;
+    var num = function (s, r, deg, font, color, al) {
+      var na = deg * D2R;
+      var x = Math.cos(na) * r, y = -Math.sin(na) * r;
+      if (deg === 0 || deg === 180) y -= 9 * f;
+      ctx.save();
+      ctx.globalAlpha *= al;
+      ctx.translate(x, y);
+      ctx.rotate(Math.PI / 2 - na);
+      ctx.font = font;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s, 0, 0);
+      ctx.restore();
+    };
+    for (d = 0; d <= 180; d += 10) {
+      var passed = sweep >= 0 && d <= sweep + 0.5;
+      var outerFont = (hi > 0.5 ? '700 ' : '600 ') + (12 * f) + 'px ' + F_M;
+      num(String(d), R - 36, d, outerFont, passed ? C.accent : C.ink, 1);
+      num(String(180 - d), R - 58, d, '500 ' + (10 * f) + 'px ' + F_M, C.muted, 1 - 0.65 * hi);
+    }
+
+    // sweep band on the rim and the reading line
+    if (sweep >= 0) {
+      ctx.beginPath();
+      ctx.arc(0, 0, R + 6, 0, -sweep * D2R, true);
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = C.accent;
+      ctx.stroke();
+      var sa2 = sweep * D2R;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(sa2) * 60, -Math.sin(sa2) * 60);
+      ctx.lineTo(Math.cos(sa2) * (R + 12), -Math.sin(sa2) * (R + 12));
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // straight edge (the 0-180 line)
+    ctx.beginPath();
+    ctx.moveTo(-R - 14, 0);
+    ctx.lineTo(R + 14, 0);
+    ctx.strokeStyle = C.edge;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if ((o.base || 0) > 0) {
+      ctx.save();
+      ctx.globalAlpha *= o.base;
+      ctx.beginPath();
+      ctx.moveTo(-R - 14, 0);
+      ctx.lineTo(R + 14, 0);
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.font = '600 ' + (11 * f) + 'px ' + F_B;
+    ctx.fillStyle = (o.base || 0) > 0.5 ? C.accent : C.muted;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('0 – 180 line', 0, 16 + 2 * (f - 1));
+
+    // centre point
+    var cc = (o.centre || 0) > 0 ? C.accent : C.ink;
+    ctx.strokeStyle = cc;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-9, 0); ctx.lineTo(9, 0);
+    ctx.moveTo(0, -9); ctx.lineTo(0, 9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /* ---------- shared HUD pieces ---------- */
+  function drawReadout(label, value, color, a) {
+    if (a <= 0) return;
+    var f = L.f, x = L.W - 200, y = 424, w = 180, h = 66;
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.fillStyle = C.surface;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.restore();
+    txt(label, x + 14, y + 22, '500 ' + (12 * f) + 'px ' + F_B, C.muted, 'left', a);
+    txt(value, x + 14, y + 57, '700 32px ' + F_D, color, 'left', a);
+  }
+
+  function drawPanel(t) {
+    if (!L.panel) return;
+    var x = 600, y = 24, w = 180, h = 250;
+    var parts = [
+      { a: 1 - seg(t, 18.7, 19.3), head: 'Measuring', items: [
+        ['Centre point on', 'the vertex', 4.5, 8.5],
+        ['0 line along', 'one arm', 8.5, 12.5],
+        ['Count up from 0', 'to the other arm', 12.5, 18.8] ] },
+      { a: seg(t, 19.1, 19.7), head: 'Drawing', items: [
+        ['Centre on vertex,', '0 line on the line', 19, 22.5],
+        ['Count up from 0,', 'mark 40°', 22.5, 26.5],
+        ['Join vertex', 'to the mark', 26.5, 29.5] ] }
+    ];
+    parts.forEach(function (p) {
+      if (p.a <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = p.a;
+      ctx.fillStyle = C.surface;
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 1;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      ctx.restore();
+      txt(p.head, x + 16, y + 32, '700 17px ' + F_D, C.ink, 'left', p.a);
+      p.items.forEach(function (it, i) {
+        var top = y + 56 + i * 62;
+        var done = t >= it[3];
+        var active = t >= it[2] && t < it[3];
+        ctx.save();
+        ctx.globalAlpha = p.a;
+        if (done) {
+          ctx.fillStyle = C.good;
+          ctx.fillRect(x + 16, top, 18, 18);
+          ctx.strokeStyle = C.surface;
+          ctx.lineWidth = 2.4;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x + 20, top + 9.5);
+          ctx.lineTo(x + 24.5, top + 14);
+          ctx.lineTo(x + 31, top + 5);
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = active ? C.accent : C.muted;
+          ctx.lineWidth = active ? 2.5 : 1.5;
+          ctx.strokeRect(x + 17, top + 1, 16, 16);
+        }
+        ctx.restore();
+        var font = (active ? '600 ' : '400 ') + '13px ' + F_B;
+        var col = (done || active) ? C.ink : C.muted;
+        txt(it[0], x + 44, top + 11, font, col, 'left', p.a);
+        txt(it[1], x + 44, top + 29, font, col, 'left', p.a);
+      });
+    });
+  }
+
+  /* ---------- part 1: measure ---------- */
+  function drawMeasure(t, alpha) {
+    if (alpha <= 0) return;
+    var f = L.f, R = 200, A1 = 20, A2 = 75, ARM = 270;
+    var V = { x: 290, y: 345 };
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    txt('Measure this angle', 24, 44, '700 ' + (26 * f) + 'px ' + F_D, C.ink);
+
+    // the two arms
+    ray(V, ARM, A1, C.ink, 4);
+    ray(V, ARM, A2, C.ink, 4);
+    var hl = seg(t, 11.6, 12.2) * (1 - 0.6 * seg(t, 13, 13.6));
+    if (hl > 0) {
+      ctx.save();
+      ctx.globalAlpha *= hl;
+      ray(V, ARM, A1, C.accent, 5);
+      ctx.restore();
+    }
+
+    // arc between the arms and its label
+    var arcP = seg(t, 2.4, 3.2);
+    if (arcP > 0) {
+      ctx.beginPath();
+      ctx.arc(V.x, V.y, 70, -A1 * D2R, -(A1 + (A2 - A1) * arcP) * D2R, true);
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    var mid = pt(V, 112, ((A1 + A2) / 2) * D2R);
+    txt('?', mid.x, mid.y + 11 * f, '700 ' + (32 * f) + 'px ' + F_D, C.accent, 'center',
+        seg(t, 3.0, 3.6) * (1 - seg(t, 16.0, 16.5)));
+    txt('55°', mid.x, mid.y + 10 * f, '700 ' + (30 * f) + 'px ' + F_D, C.accent, 'center',
+        seg(t, 16.3, 16.9));
+
+    // vertex
+    var vv = vis(t, 1.6, 4.4);
+    if (t >= 1.6 && t < 3.8) {
+      var ph = ((t - 1.6) / 0.8) % 1;
+      ring(V, 8 + 26 * ph, C.accent, 3, 1 - ph);
+    }
+    dot(V, 6.5, vv > 0.5 ? C.accent : C.ink);
+    txt('vertex', V.x - 14, V.y + 34, '600 ' + (17 * f) + 'px ' + F_B, C.accent, 'right', vv);
+
+    // arm labels
+    var la = vis(t, 3.2, 4.4);
+    if (la > 0) {
+      var p1 = pt(V, 200, A1 * D2R), p2 = pt(V, 200, A2 * D2R);
+      txt('arm', p1.x, p1.y + 26 * f, '600 ' + (17 * f) + 'px ' + F_B, C.ink, 'center', la);
+      txt('arm', p2.x - 16, p2.y + 4, '600 ' + (17 * f) + 'px ' + F_B, C.ink, 'right', la);
+    }
+
+    // protractor motion
+    var slide = easeIO(seg(t, 4.7, 8.2));
+    var rp = easeIO(seg(t, 8.7, 12.0));
+    var start = { x: V.x + 260, y: V.y + 110 };
+    var pc = { x: lerp(start.x, V.x, slide), y: lerp(start.y, V.y, slide) };
+    var rot = A1 * D2R * rp;
+    var pa = seg(t, 4.5, 5.3);
+    var ch = seg(t, 7.4, 7.9) * (1 - seg(t, 9.7, 10.2));
+    var sweep = t >= 13.2 ? 55 * easeIO(seg(t, 13.2, 16.2)) : null;
+    if (pa > 0) {
+      drawProtractor(pc, rot, pa, {
+        hi: seg(t, 12.5, 13.0), centre: ch, base: seg(t, 11.6, 12.2) * (1 - 0.65 * seg(t, 13, 13.6)), sweep: sweep
+      });
+    }
+
+    // centre-point callout
+    if (ch > 0) {
+      var ph2 = ((t - 7.4) / 0.9) % 1;
+      ring(V, 10 + 24 * ph2, C.accent, 3, ch * (1 - ph2));
+      ctx.save();
+      ctx.globalAlpha *= ch;
+      ctx.beginPath();
+      ctx.moveTo(V.x + 5, V.y + 8);
+      ctx.lineTo(V.x + 32, V.y + 54);
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+      txt('centre point on the vertex', V.x + 38, V.y + 66, '600 ' + (16 * f) + 'px ' + F_B, C.accent, 'left', ch);
+    }
+
+    // the 0 that the arm passes through
+    var zv = vis(t, 12.5, 16.3);
+    if (zv > 0) {
+      var z = toWorld(pc, rot, R - 36, -9 * f);
+      ring(z, 15 + 2.5 * Math.sin(t * 6), C.accent, 2.5, zv);
+      var zp = pt(V, R + 16, A1 * D2R);
+      txt('start at 0', zp.x + 10, zp.y + 28 * f, '600 ' + (16 * f) + 'px ' + F_B, C.accent, 'left', zv);
+    }
+
+    // reading found, and the wrong row
+    var dp = seg(t, 16.2, 16.7);
+    if (dp > 0) dot(pt(V, R, A2 * D2R), 7.5 * easeOut(dp), C.accent);
+    var w2 = seg(t, 16.6, 17.2);
+    if (w2 > 0) {
+      var ip = pt(V, R - 58, A2 * D2R);
+      ctx.save();
+      ctx.globalAlpha *= w2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.arc(ip.x, ip.y, 22, 0, Math.PI * 2);
+      ctx.strokeStyle = C.muted;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      var tp = pt(V, R + 38, A2 * D2R);
+      var tx = tp.x + 14, ty = tp.y + 6;
+      var wf = '600 ' + (22 * f) + 'px ' + F_M;
+      txt('125°', tx, ty, wf, C.muted, 'left', w2);
+      ctx.save();
+      ctx.font = wf;
+      var tw = ctx.measureText('125°').width;
+      ctx.globalAlpha *= w2;
+      ctx.beginPath();
+      ctx.moveTo(tx - 3, ty - 7 * f);
+      ctx.lineTo(tx + tw + 3, ty - 7 * f);
+      ctx.strokeStyle = C.muted;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+      txt('counts from the other 0', tx, ty + 22 * f, '500 ' + (13 * f) + 'px ' + F_B, C.muted, 'left', w2);
+    }
+
+    // readout
+    var ra = seg(t, 13.0, 13.5) * (1 - seg(t, 18.5, 19.1));
+    if (sweep !== null) {
+      if (t < 16.2) drawReadout('Counting up from 0', Math.round(sweep) + '°', C.accent, ra);
+      else drawReadout('Outer scale from 0', '55°', C.good, ra);
+    }
+    ctx.restore();
+  }
+
+  /* ---------- part 2: draw ---------- */
+  function drawDraw(t, alpha) {
+    if (alpha <= 0) return;
+    var f = L.f, R = 200;
+    var V = { x: 230, y: 390 };
+    var endX = L.panel ? 575 : L.W - 24;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    txt('Draw a 40° angle', 24, 44, '700 ' + (26 * f) + 'px ' + F_D, C.ink);
+
+    // the first line
+    var lp = easeOut(seg(t, 19.4, 20.5));
+    ctx.beginPath();
+    ctx.moveTo(V.x, V.y);
+    ctx.lineTo(lerp(V.x, endX, lp), V.y);
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // vertex
+    var vp = seg(t, 20.4, 20.9);
+    var vv = vp * (1 - seg(t, 22.8, 23.2));
+    if (vp > 0) dot(V, 6.5 * easeOut(vp), vv > 0.5 ? C.accent : C.ink);
+    txt('vertex', V.x - 14, V.y + 36, '600 ' + (17 * f) + 'px ' + F_B, C.accent, 'right', vv);
+
+    // protractor motion
+    var slide = easeIO(seg(t, 20.6, 22.2));
+    var ex = easeIO(seg(t, 26.6, 27.6));
+    var start = { x: V.x + 250, y: V.y + 90 };
+    var pc = { x: lerp(start.x, V.x, slide) + 110 * ex, y: lerp(start.y, V.y, slide) + 80 * ex };
+    var pa = seg(t, 20.5, 21.1) * (1 - seg(t, 26.9, 27.6));
+    var sweep = t >= 22.9 ? 40 * easeIO(seg(t, 22.9, 25.5)) : null;
+    var ch = seg(t, 21.9, 22.3) * (1 - seg(t, 22.9, 23.4));
+    if (pa > 0) {
+      drawProtractor(pc, 0, pa, { hi: seg(t, 22.0, 22.5), centre: ch, base: 0, sweep: sweep });
+    }
+    if (ch > 0) {
+      var ph = ((t - 21.9) / 0.9) % 1;
+      ring(V, 10 + 24 * ph, C.accent, 3, ch * (1 - ph));
+    }
+
+    // the 0 on the side the line points to
+    var zv = vis(t, 22.0, 26.4);
+    if (zv > 0) {
+      var z = toWorld(V, 0, R - 36, -9 * f);
+      ring(z, 15 + 2.5 * Math.sin(t * 6), C.accent, 2.5, zv);
+      txt('start at 0', V.x + R + 22, V.y - 14 * f, '600 ' + (16 * f) + 'px ' + F_B, C.accent, 'left', zv);
+    }
+
+    // the finished ray, drawn before the mark so the mark sits on top
+    var rp = easeOut(seg(t, 27.3, 28.5));
+    if (rp > 0) ray(V, 340 * rp, 40, C.ink, 4);
+
+    // the mark at 40
+    var D = pt(V, R, 40 * D2R);
+    var dp = seg(t, 25.5, 26.1);
+    if (dp > 0) dot(D, 8 * easeOut(dp), C.accent);
+    var lp2 = pt(V, R + 32, 40 * D2R);
+    txt('40°', lp2.x, lp2.y + 8 * f, '700 ' + (22 * f) + 'px ' + F_D, C.accent, 'center',
+        seg(t, 25.8, 26.2) * (1 - seg(t, 26.6, 27.1)));
+
+    // arc and label
+    var ap = seg(t, 28.4, 29.1);
+    if (ap > 0) {
+      ctx.beginPath();
+      ctx.arc(V.x, V.y, 90, 0, -40 * D2R * ap, true);
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    var ml = pt(V, 132, 20 * D2R);
+    txt('40°', ml.x, ml.y + 9 * f, '700 ' + (28 * f) + 'px ' + F_D, C.accent, 'center', seg(t, 28.9, 29.4));
+
+    // readout
+    var ra = seg(t, 22.8, 23.3);
+    if (sweep !== null) {
+      if (t < 25.5) drawReadout('Counting up from 0', Math.round(sweep) + '°', C.accent, ra);
+      else drawReadout('Angle to draw', '40°', C.good, ra);
+    }
+    ctx.restore();
+  }
+
+  /* ---------- frame ---------- */
+  function draw(t) {
+    var cw = canvas.clientWidth;
+    if (!cw) return;
+    var dpr = window.devicePixelRatio || 1;
+    var narrow = cw < 640;
+    L = { W: narrow ? 600 : 800, H: 500, panel: !narrow, f: narrow ? 1.3 : 1 };
+    var ar = L.W + '/' + L.H;
+    if (canvas.dataset.ar !== ar) { canvas.style.aspectRatio = ar; canvas.dataset.ar = ar; }
+    var pw = Math.round(cw * dpr), ph = Math.round(cw * L.H / L.W * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+    ctx.setTransform(pw / L.W, 0, 0, pw / L.W, 0, 0);
+    readColors();
+
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(0, 0, L.W, L.H);
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    var gx, gy;
+    for (gx = 0; gx <= L.W; gx += 25) { ctx.moveTo(gx + 0.5, 0); ctx.lineTo(gx + 0.5, L.H); }
+    for (gy = 0; gy <= L.H; gy += 25) { ctx.moveTo(0, gy + 0.5); ctx.lineTo(L.W, gy + 0.5); }
+    ctx.stroke();
+
+    drawMeasure(t, 1 - seg(t, 18.7, 19.3));
+    drawDraw(t, seg(t, 19.1, 19.7));
+    drawPanel(t);
+  }
+
+  /* ---------- controls ---------- */
+  var playBtn = document.getElementById('play');
+  var restartBtn = document.getElementById('restart');
+  var scrub = document.getElementById('scrub');
+  var timeEl = document.getElementById('time');
+  var speedSel = document.getElementById('speed');
+  var loopBox = document.getElementById('loop');
+  var noEl = document.getElementById('stepno');
+  var titleEl = document.getElementById('steptitle');
+  var bodyEl = document.getElementById('stepbody');
+  var stepsEl = document.getElementById('steps');
+
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  var t = 0, playing = !reduce, speed = 1, loop = false, last = 0, shownKey = '';
+  var chips = [];
+
+  STEPS.forEach(function (s, i) {
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span class="n">' + (i + 1) + (i < 4 ? ' · MEASURE' : ' · DRAW') + '</span><span>' + s.short + '</span>';
+    b.addEventListener('click', function () { t = s.t + 0.01; playing = true; });
+    li.appendChild(b);
+    stepsEl.appendChild(li);
+    chips.push(b);
+  });
+
+  function stepIndex(tt) {
+    var k = 0;
+    for (var i = 0; i < STEPS.length; i++) if (tt >= STEPS[i].t) k = i;
+    return k;
+  }
+  function fmt(s) {
+    var m = Math.floor(s / 60), r = Math.floor(s % 60);
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  function updateUI() {
+    scrub.value = String(t);
+    timeEl.textContent = fmt(t) + ' / 0:30';
+    playBtn.textContent = playing ? 'Pause' : (t >= TOTAL - 0.01 ? 'Replay' : 'Play');
+    var i = stepIndex(t);
+    var s = STEPS[i];
+    var late = s.alt && t >= s.alt.from;
+    var key = i + (late ? 'b' : 'a');
+    if (key !== shownKey) {
+      shownKey = key;
+      noEl.textContent = 'Step ' + (i + 1) + ' of 7';
+      titleEl.textContent = s.title;
+      bodyEl.textContent = late ? s.alt.body : s.body;
+      chips.forEach(function (b, k) {
+        if (k === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+        b.className = k < i ? 'done' : '';
+      });
+    }
+  }
+
+  playBtn.addEventListener('click', function () {
+    if (playing) { playing = false; }
+    else { if (t >= TOTAL - 0.01) t = 0; playing = true; }
+  });
+  restartBtn.addEventListener('click', function () { t = 0; playing = true; });
+  scrub.addEventListener('input', function () { t = parseFloat(scrub.value) || 0; });
+  speedSel.addEventListener('change', function () { speed = parseFloat(speedSel.value) || 1; });
+  loopBox.addEventListener('change', function () { loop = loopBox.checked; });
+
+  function frame(ts) {
+    if (!last) last = ts;
+    var dt = Math.min(0.1, (ts - last) / 1000);
+    last = ts;
+    if (playing) {
+      t += dt * speed;
+      if (t >= TOTAL) {
+        if (loop) t = 0; else { t = TOTAL; playing = false; }
+      }
+    }
+    draw(t);
+    updateUI();
+    requestAnimationFrame(frame);
+  }
+
+  try {
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('700 32px "Bricolage Grotesque"');
+      document.fonts.load('600 13px "DM Sans"');
+      document.fonts.load('600 12px "IBM Plex Mono"');
+    }
+  } catch (e) {}
+
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

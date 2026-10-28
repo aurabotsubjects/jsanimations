@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The River Bridge</title></head>
+<body><script>
+(()=>{
+const NS='http://www.w3.org/2000/svg',S={stroke:'#fff','stroke-opacity':.45,'stroke-width':1.5,'stroke-linejoin':'round'};
+const $=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const P=(p,pts,f)=>$('polygon',{points:pts,fill:f,...S},p);
+const C=(p,cx,cy,r,f)=>$('circle',{cx,cy,r,fill:f,...S},p);
+const E=(p,cx,cy,rx,ry,f)=>$('ellipse',{cx,cy,rx,ry,fill:f,...S},p);
+const R=(p,x,y,w,h,f,rot=0)=>$('rect',{x,y,width:w,height:h,fill:f,transform:`rotate(${rot} ${x+w/2} ${y})`,...S},p);
+const T=(p,x,y,s,f,txt)=>{const t=$('text',{x,y,'font-size':s,fill:f,'text-anchor':'middle','font-weight':'bold','font-family':'inherit'},p);t.textContent=txt;return t};
+const F=(e,id='sh')=>{e.setAttribute('filter',`url(#${id})`);return e};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+const st=document.createElement('style');
+st.textContent=`html,body{margin:0;height:100%;background:#2b2118;overflow:hidden;font-family:"Chalkboard SE","Comic Sans MS","Segoe Print",cursive}
+svg{position:fixed;inset:0;width:100%;height:100%}
+#cap{position:fixed;left:50%;bottom:3.5%;transform:translateX(-50%) rotate(-.7deg);background:#fff8e8;color:#4a3320;padding:.7em 1.4em;font-size:clamp(15px,2.5vw,27px);text-align:center;box-shadow:4px 6px 0 rgba(0,0,0,.3);border-bottom:5px solid #e6d3a8;opacity:0;transition:opacity .4s;width:max-content;max-width:86vw}
+#card{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) rotate(1.5deg);background:#fff8e8;color:#4a3320;padding:1em 1.6em;text-align:center;box-shadow:6px 9px 0 rgba(0,0,0,.35);border-bottom:7px solid #e6d3a8;opacity:0;pointer-events:none;transition:opacity .8s}
+#card h1{margin:0;font-size:clamp(28px,6vw,64px)}
+#re{display:none;margin-top:.7em;font:inherit;font-size:clamp(16px,2.6vw,26px);background:#e0533d;color:#fff;border:0;padding:.5em 1.2em;cursor:pointer;box-shadow:3px 4px 0 rgba(0,0,0,.3);transform:rotate(-1.5deg)}
+#re:hover{background:#c8402c}`;
+document.head.appendChild(st);
+const capEl=document.createElement('div');capEl.id='cap';
+const cardEl=document.createElement('div');cardEl.id='card';
+const ct=document.createElement('h1');const re=document.createElement('button');re.id='re';re.textContent='Replay';
+cardEl.append(ct,re);document.body.append(capEl,cardEl);
+const svg=$('svg',{viewBox:'0 0 1000 600',preserveAspectRatio:'xMidYMid meet'});document.body.appendChild(svg);
+
+const cap=t=>{capEl.style.opacity=0;setTimeout(()=>{capEl.textContent=t;capEl.style.opacity=1},350)};
+const card=(txt,btn)=>{if(txt==null){cardEl.style.opacity=0;cardEl.style.pointerEvents='none';return}ct.textContent=txt;re.style.display=btn?'inline-block':'none';cardEl.style.opacity=1;cardEl.style.pointerEvents=btn?'auto':'none'};
+
+let deck,fx,pile,planks=[],W,BX=380,PW=30;
+
+function tree(p,x,y,s,sway){const o=$('g',{transform:`translate(${x},${y}) scale(${s})`},p);const g=$('g',{},o);
+ R(g,-7,-40,14,40,'#6b4423');P(g,'-45,-30 0,-110 45,-30','#2f7d4a');P(g,'-38,-70 0,-140 38,-70','#3c9358');P(g,'-28,-105 0,-175 28,-105','#4aa868');
+ g.style.transformBox='fill-box';g.style.transformOrigin='50% 100%';
+ g.animate([{transform:'rotate(-1.5deg)'},{transform:'rotate(1.5deg)'}],{duration:1200+sway*300,direction:'alternate',iterations:Infinity,easing:'steps(3)'});}
+function cloud(p,x,y,s){const o=$('g',{transform:`translate(${x},${y}) scale(${s})`},p);const g=$('g',{},o);
+ [[0,0,40,22],[-30,8,30,16],[32,8,34,16],[0,12,50,14]].forEach(a=>E(g,a[0],a[1],a[2],a[3],'#fffdf5'));
+ g.animate([{transform:'translateX(0)'},{transform:'translateX(70px)'}],{duration:14000,direction:'alternate',iterations:Infinity,easing:'ease-in-out'});}
+function log(p,x,y){const g=$('g',{},p);const r=R(g,x,y,48,13,'#8b5a2b');r.setAttribute('rx',6);E(g,x+48,y+6.5,6,6.5,'#d9a566');return g}
+function more(){const k=pile.children.length;log(pile,-24+(k%3)*12,-14*Math.floor(k/3)-(k%3)*2).animate([{transform:'translateY(-40px)',opacity:0},{transform:'none',opacity:1}],{duration:400})}
+
+function setup(){
+ svg.innerHTML=`<defs>
+ <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="3" dy="5" stdDeviation="2.5" flood-color="#000" flood-opacity=".35"/></filter>
+ <filter id="sh2" x="-10%" y="-20%" width="120%" height="150%"><feDropShadow dx="4" dy="8" stdDeviation="4" flood-color="#000" flood-opacity=".4"/></filter>
+ <filter id="gr"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .2 0 0 0 .7 -.2"/></filter>
+ <clipPath id="rc"><rect x="380" y="450" width="240" height="150"/></clipPath></defs>`;
+ planks=[];
+ $('rect',{width:1000,height:600,fill:'#bfe6ee'},svg);
+ const sun=$('g',{},svg);const rays=$('g',{},sun);
+ for(let i=0;i<12;i++)$('polygon',{points:'833,52 847,52 840,30',fill:'#ffe08a',transform:`rotate(${i*30} 840 110)`},rays);
+ C(sun,840,110,52,'#ffd45e');
+ rays.style.transformOrigin='840px 110px';rays.animate([{transform:'rotate(0)'},{transform:'rotate(360deg)'}],{duration:40000,iterations:Infinity,easing:'steps(40)'});
+ cloud(svg,160,90,1.1);cloud(svg,520,60,.8);cloud(svg,700,150,.9);
+ F(P(svg,'0,400 120,330 250,380 400,300 560,370 700,310 860,370 1000,320 1000,520 0,520','#9bcf94'));
+ F(P(svg,'0,440 150,380 300,430 480,370 650,430 820,380 1000,430 1000,540 0,540','#7bb877'));
+ // river
+ F($('rect',{x:370,y:450,width:260,height:150,fill:'#3b8fcb'},svg));
+ const wv=$('g',{'clip-path':'url(#rc)'},svg);
+ [470,500,530,562].forEach((y,i)=>{const w=$('path',{d:`M${330+(i%2)*20} ${y} q10 -8 20 0`+' t20 0'.repeat(16),fill:'none',stroke:'#a9dcf5','stroke-width':4,'stroke-linecap':'round'},wv);
+  w.animate([{transform:'translateX(0)'},{transform:'translateX(40px)'}],{duration:1300+i*200,iterations:Infinity,easing:'steps(5)'})});
+ // banks
+ const bank=(x0,x1)=>{const top=[`${x0},540`],bot=[];
+  for(let x=x0,i=0;x<=x1;x+=20,i++)top.push(`${x},${i%2?446:458}`);
+  top.push(`${x1},540`);for(let x=x1,i=0;x>=x0;x-=20,i++)top.push(`${x},${i%2?536:548}`);
+  return top.join(' ')};
+ F(P(svg,'0,456 380,456 366,600 0,600','#8a5a34'),'sh2');F(P(svg,'620,456 1000,456 1000,600 634,600','#8a5a34'),'sh2');
+ F(P(svg,bank(0,380),'#58b05a'),'sh2');F(P(svg,bank(620,1000),'#58b05a'),'sh2');
+ [[40,455,1.3],[150,452,1.1],[255,455,.9],[700,455,1.2],[820,452,1.45],[940,455,1.1]].forEach((t,i)=>F(($('g',{},svg)),'sh').appendChild((()=>{const h=$('g');tree(h,t[0],t[1],t[2],i);return h.firstChild})()));
+ for(let i=0;i<16;i++){const x=i%2?rnd(15,360):rnd(640,985),y=rnd(505,535);const f=F($('g',{},svg));C(f,x,y,6,['#f2a0b8','#fff','#f7c948'][i%3]);C(f,x,y,2.5,'#e0533d')}
+ deck=F($('g',{},svg));
+ const chars=$('g',{},svg);
+ W={};
+ const mk=(x,y,h,draw,hx,hy)=>{const c=$('g',{filter:'url(#sh)'},chars);c.style.transform=`translate(${x}px,${y}px)`;c.pos=[x,y];c.h=h;c.home=[hx,hy];c.f=$('g',{},c);c.b=$('g',{},c.f);draw(c.b);return c};
+ W.boy=mk(-160,485,110,b=>{R(b,-13,-34,10,34,'#34498f');R(b,3,-34,10,34,'#34498f');E(b,-8,0,9,4,'#5a3a22');E(b,8,0,9,4,'#5a3a22');
+  R(b,-22,-68,8,28,'#f2b88c',14);P(b,'-17,-32 17,-32 13,-70 -13,-70','#e0533d');R(b,14,-68,8,28,'#f2b88c',-14);
+  E(b,0,-86,17,18,'#f6c9a0');P(b,'-18,-88 -16,-106 0,-110 16,-106 18,-88 8,-97 -6,-94','#5a3a22');
+  C(b,7,-86,2.2,'#222');C(b,9,-76,3,'#f08f8f');$('path',{d:'M2 -79 q4 4 9 0',fill:'none',stroke:'#a33','stroke-width':2},b)},350,485);
+ W.dog=mk(-160,490,58,d=>{R(d,-36,-26,8,26,'#9b6b3c');R(d,-22,-26,8,26,'#8a5c30');R(d,12,-26,8,26,'#9b6b3c');R(d,24,-26,8,26,'#8a5c30');
+  P(d,'-34,-42 -58,-64 -46,-34','#b57d44');E(d,-4,-36,36,16,'#b57d44');E(d,36,-52,15,14,'#b57d44');E(d,50,-48,10,7,'#c99a62');
+  C(d,58,-50,3,'#222');P(d,'30,-62 22,-40 38,-50','#6e4524');C(d,40,-56,2,'#222')},285,490);
+ W.wolf=mk(-160,487,75,w=>{R(w,-42,-30,9,30,'#6a7482');R(w,-26,-30,9,30,'#5a6371');R(w,14,-30,9,30,'#6a7482');R(w,28,-30,9,30,'#5a6371');
+  P(w,'-40,-52 -74,-38 -66,-30 -38,-40','#7d8796');E(w,-4,-46,44,20,'#8f99a8');P(w,'30,-64 62,-50 80,-44 62,-36 30,-34','#8f99a8');
+  P(w,'32,-64 34,-84 46,-62','#6a7482');C(w,48,-52,3,'#f5d04a');C(w,79,-45,3.5,'#222');E(w,-4,-34,26,8,'#c9d0da')},215,487);
+ W.horse=mk(-200,484,150,h=>{R(h,-46,-62,10,62,'#8f5f30');R(h,-30,-62,10,62,'#7d5026');R(h,28,-62,10,62,'#8f5f30');R(h,42,-62,10,62,'#7d5026');
+  [-46,-30,28,42].forEach(x=>R(h,x-1,-8,12,8,'#3a2412'));P(h,'-46,-100 -74,-50 -64,-46 -42,-82','#4a2e16');
+  E(h,0,-86,52,25,'#a9743f');P(h,'28,-96 52,-104 62,-142 40,-148','#a9743f');P(h,'40,-148 62,-142 94,-120 88,-108 56,-124','#a9743f');
+  P(h,'36,-148 44,-152 34,-100 24,-96','#4a2e16');P(h,'46,-148 52,-166 58,-144','#7d5026');C(h,64,-136,3,'#222');C(h,86,-116,2.5,'#5a3a22')},135,484);
+ W.bird=mk(-120,260,0,b=>{P(b,'-20,0 -44,-9 -44,9','#2b7bb5');E(b,0,0,22,15,'#4aa3df');C(b,20,-8,11,'#4aa3df');P(b,'29,-9 43,-4 29,0','#f5a623');C(b,24,-11,2.3,'#222');E(b,2,6,13,6,'#bfe6f7');
+  const w=$('g',{},b);P(w,'-2,-4 -26,-36 10,-14','#2b7bb5');w.animate([{transform:'rotate(0deg)'},{transform:'rotate(38deg)'}],{duration:240,direction:'alternate',iterations:Infinity,easing:'steps(1)'})},150,320);
+ W.bird.fly=1;
+ let cf=[],cs=[];
+ W.cham=mk(-200,486,50,c=>{const g=e=>(cf.push(e),e);cs.push($('path',{d:'M-24 -22 q-30 2 -26 -18 q6 -14 18 -4 q5 9 -6 7',fill:'none',stroke:'#58b368','stroke-width':8,'stroke-linecap':'round'},c));
+  g(R(c,-14,-14,8,14,'#58b368'));g(R(c,10,-14,8,14,'#58b368'));g(E(c,0,-26,30,17,'#58b368'));g(C(c,32,-32,13,'#58b368'));g(P(c,'-10,-40 -4,-56 2,-41 8,-56 14,-40','#58b368'));
+  C(c,-8,-28,4,'#8bd49a');C(c,8,-30,3,'#8bd49a');C(c,36,-36,7,'#fff');C(c,37,-36,3,'#222');$('path',{d:'M36 -27 q6 3 9 -1',fill:'none',stroke:'#2d6b3a','stroke-width':2},c)},45,486);
+ W.cham.cf=cf;W.cham.cs=cs;W.cham.slow=1.7;
+ const bh=W.bird;bh.b.animate([{transform:'translateY(0)'},{transform:'translateY(-9px)'}],{duration:500,direction:'alternate',iterations:Infinity,easing:'steps(2)'});
+ pile=F($('g',{transform:'translate(330,508)'},svg));fx=$('g',{},svg);
+ $('rect',{width:1000,height:600,filter:'url(#gr)',opacity:.3,'pointer-events':'none'},svg);
+ $('path',{d:'M-3000-3000H4000V4000H-3000Z M0 0V600H1000V0Z','fill-rule':'evenodd',fill:'#2b2118'},svg);
+}
+
+function bob(c,ms){if(c.fly)return;c.b.animate([{transform:'translateY(0)'},{transform:'translateY(-9px)'},{transform:'translateY(0)'}],{duration:380,iterations:Math.max(1,Math.round(ms/380)),easing:'steps(2)'})}
+function mv(c,x,y,ms){const[a,b]=c.pos;if(x!==a)c.f.style.transform=`scaleX(${x<a?-1:1})`;bob(c,ms);
+ const an=c.animate([{transform:`translate(${a}px,${b}px)`},{transform:`translate(${x}px,${y}px)`}],{duration:ms,easing:'ease-in-out'});
+ c.pos=[x,y];c.style.transform=`translate(${x}px,${y}px)`;return an.finished}
+function face(c,d){c.f.style.transform=`scaleX(${d})`}
+function bubble(c,s,ms=1500){const b=$('g',{transform:`translate(0,${-c.h-30})`},c);const i=$('g',{},b);C(i,0,0,20,'#fff');
+ if(typeof s==='string')T(i,0,9,28,'#d04a3a',s);else s(i);
+ i.animate([{transform:'scale(0)'},{transform:'scale(1.2)'},{transform:'scale(1)'}],{duration:350});setTimeout(()=>b.remove(),ms)}
+const flyShape=p=>{C(p,0,0,5,'#222');E(p,-4,-6,6,3,'#dfe9f2');E(p,4,-6,6,3,'#dfe9f2')};
+function splash(x){for(let i=0;i<4;i++){const c=$('circle',{cx:x,cy:462,r:rnd(5,9),fill:'#fff'},fx);c.animate([{transform:'translate(0,0)',opacity:.9},{transform:`translate(${(i-1.5)*14}px,-45px)`,opacity:0}],{duration:700,easing:'ease-out'}).onfinish=()=>c.remove()}}
+
+async function haul(list){
+ await Promise.all(list.map(c=>mv(c,-170,c.home[1],1400*(c.slow||1))));await sleep(300);
+ list.forEach(c=>{c.lg=$('g',{},c.b);log(c.lg,-24,-c.h*.75)});
+ await Promise.all(list.map(c=>mv(c,c.home[0],c.home[1],1800*(c.slow||1))));
+ list.forEach(c=>c.lg.remove());more();more();await sleep(300)}
+async function build(n,team){
+ team.forEach(c=>bob(c,n*320));
+ for(let i=0;i<n;i++){const x=BX+i*PW;const p=$('g',{},deck);p.x=x;
+  R(p,x,452,PW-2,12,i%2?'#b07a45':'#c48a50');R(p,x+2,464,PW-6,7,'#7a5230');
+  p.style.transformBox='fill-box';p.style.transformOrigin='center';
+  p.animate([{transform:'translateY(-90px) rotate(-12deg)',opacity:0},{transform:'none',opacity:1}],{duration:260,easing:'ease-in'});
+  planks.push(p);await sleep(320)}}
+async function crash(team){
+ await sleep(500);
+ planks.forEach(p=>p.animate([{transform:'rotate(0deg)'},{transform:'rotate(-4deg)'},{transform:'rotate(4deg)'},{transform:'rotate(0deg)'}],{duration:450,iterations:2}));
+ await sleep(900);team.forEach(c=>bubble(c,'!'));
+ const L=planks.slice().reverse();planks=[];
+ for(const p of L){p.animate([{transform:'none',opacity:1},{transform:`translate(${rnd(-20,30)}px,170px) rotate(${rnd(-80,80)}deg)`,opacity:0}],{duration:900,easing:'ease-in',fill:'forwards'});
+  setTimeout(()=>splash(p.x+14),550);setTimeout(()=>p.remove(),1300);await sleep(140)}
+ await sleep(1800)}
+async function jumpFail(c){const[x,y]=c.pos;
+ const a=c.animate([{transform:`translate(${x}px,${y}px)`},{transform:`translate(${x+40}px,${y-90}px)`},{transform:`translate(${x+95}px,${y-20}px)`},{transform:`translate(${x+105}px,${y+40}px)`,opacity:0}],{duration:1300,easing:'ease-in-out'});
+ setTimeout(()=>splash(x+108),1150);await a.finished;bubble(c,'!')}
+const tint=col=>{const c=W.cham;c.cf.forEach(e=>{e.style.transition='fill 1.2s';e.style.fill=col});c.cs.forEach(e=>{e.style.transition='stroke 1.2s';e.style.stroke=col})};
+
+async function play(){
+ const{boy,dog,wolf,horse,bird,cham}=W;
+ card('The River Bridge');await sleep(3000);card();await sleep(600);
+ cap('Once upon a time, a boy walked through a forest.');
+ await mv(boy,190,485,3000);await sleep(300);
+ cap('But he had a problem: he couldn’t cross the river.');
+ await mv(boy,350,485,2000);bubble(boy,'?',2500);await sleep(3500);
+ cap('He tried to cross on his own, but he couldn’t.');await sleep(1200);
+ await jumpFail(boy);await sleep(2200);
+
+ cap('Then he spotted a dog and asked it to help search for lots of wood.');
+ await mv(dog,285,490,2600);bubble(boy,'?');face(boy,-1);await sleep(2400);face(boy,1);
+ cap('Together they gathered some wood and began to build.');
+ dog.home=[285,490];await haul([boy,dog]);await build(3,[boy,dog]);
+ cap('But then it broke down.');await crash([boy,dog]);
+
+ cap('So the dog fetched a wolf and asked it for help.');
+ await mv(dog,-170,490,1500);await sleep(300);
+ await Promise.all([mv(dog,285,490,2400),mv(wolf,215,487,2800)]);await sleep(1500);
+ cap('Then they gathered more materials and built again, but it still failed.');
+ await haul([boy,dog,wolf]);await build(5,[boy,dog,wolf]);await crash([boy,dog,wolf]);
+
+ cap('So the wolf found a horse and brought it to the boy. The horse said he could help.');
+ await mv(wolf,-170,487,1500);await sleep(300);
+ await Promise.all([mv(wolf,215,487,2400),mv(horse,135,484,3000)]);bubble(horse,'!');await sleep(2500);
+ cap('They let him help, and they gathered lots of wood and built it over again.');
+ await haul([boy,dog,wolf,horse]);await build(6,[boy,dog,wolf,horse]);
+ cap('Sadly, the bridge broke again.');await crash([boy,dog,wolf,horse]);
+
+ cap('So the horse called his friend, a bird, and told her to follow along.');
+ await mv(bird,150,320,2600);await sleep(1800);
+ cap('She came to the boy to help, and they tried again. But the bridge still broke, even though they were so close!');
+ await mv(bird,300,300,1500);
+ await haul([boy,dog,wolf,horse]);await build(7,[boy,dog,wolf,horse]);await crash([boy,dog,wolf,horse]);
+
+ cap('Then the bird found a chameleon to help and showed it the problem.');
+ await mv(bird,-150,300,1600);await sleep(300);
+ await Promise.all([mv(bird,150,330,3000),mv(cham,45,486,3600)]);await sleep(600);
+ cap('The chameleon said it would help if it got a bug.');
+ bubble(cham,i=>$('g',{transform:'scale(1.7)'},i)&&flyShape($('g',{transform:'scale(1.7)'},i)),3500);await sleep(4200);
+
+ cap('So quickly, the bird caught a fly and gave it to the chameleon.');
+ const fly=$('g',{transform:'translate(700,250)'},svg.querySelector('g[filter]')?fx:fx);const fi=$('g',{},fly);flyShape(fi);
+ fi.animate([{transform:'translate(0,0)'},{transform:'translate(30px,-25px)'},{transform:'translate(-20px,15px)'},{transform:'translate(25px,20px)'},{transform:'translate(0,0)'}],{duration:900,iterations:Infinity,easing:'steps(4)'});
+ await mv(bird,650,255,2400);
+ fi.getAnimations().forEach(a=>a.cancel());bird.b.appendChild(fly);fly.setAttribute('transform','translate(50,-4)');
+ await mv(bird,95,435,3000);
+ fly.animate([{transform:'scale(1)',opacity:1},{transform:'scale(.1)',opacity:0}],{duration:400,fill:'forwards'});
+ bob(cham,800);tint('#f08a24');await sleep(1200);tint('#e86fa0');await sleep(1000);
+ await mv(bird,150,330,1500);
+
+ cap('Then all of them gathered more wood and built all the way to the other side.');
+ await haul([boy,dog,wolf,horse,cham]);
+ await build(8,[boy,dog,wolf,horse,cham]);
+ const rail=F($('g',{},deck));
+ for(let i=0;i<=4;i++)R(rail,BX+i*60-3,428,6,26,'#6b4423');
+ $('path',{d:`M${BX} 436 L${BX+240} 436`,stroke:'#e8cf9a','stroke-width':3,fill:'none'},rail);
+ rail.animate([{opacity:0,transform:'translateY(-20px)'},{opacity:1,transform:'none'}],{duration:600});
+ [boy,dog,wolf,horse,cham].forEach(c=>{bob(c,1500);bubble(c,'★',2000)});
+ cap('At last, the boy could cross the river!');await sleep(2800);
+
+ const away=[[700,485],[760,488],[820,487],[885,484],[945,486]];
+ await Promise.all([boy,dog,wolf,horse,cham].map((c,i)=>(async()=>{
+  await sleep(i*1200);await mv(c,375,452,700);await mv(c,625,452,3600*(c.slow||1)*.85);await mv(c,away[i][0],away[i][1],900)})()));
+ mv(bird,860,310,2500);await sleep(3000);
+ capEl.style.opacity=0;await sleep(600);card('The End',true);
+}
+const start=()=>{card();capEl.style.opacity=0;setup();play()};
+re.onclick=start;start();
+})();
+</script></body></html>

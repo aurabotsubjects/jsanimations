@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Great Pool Drain</title>
+<style>
+html,body{margin:0;height:100%;background:#2d2a33;font-family:"Chalkboard SE","Comic Sans MS","Marker Felt",sans-serif}
+#wrap{max-width:960px;margin:0 auto;height:100%;display:flex;flex-direction:column;justify-content:center;padding:8px;box-sizing:border-box}
+#stage{position:relative;width:100%;aspect-ratio:16/9}
+canvas{width:100%;height:100%;display:block;border:8px solid #f6efe0;box-sizing:border-box;box-shadow:0 8px 24px rgba(0,0,0,.55)}
+#cap{background:#fff6dc;color:#3a2c2c;margin:16px auto 0;padding:12px 20px;max-width:92%;text-align:center;font-size:clamp(16px,2.6vw,24px);line-height:1.35;min-height:2.7em;box-shadow:3px 4px 0 rgba(0,0,0,.4);transform:rotate(-.5deg);transition:opacity .35s}
+#btn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-2deg);font:inherit;font-size:clamp(20px,4vw,34px);padding:14px 34px;background:#ffcf4a;color:#3a2c2c;border:0;box-shadow:4px 6px 0 rgba(0,0,0,.4);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .6s}
+#btn.show{opacity:1;pointer-events:auto}
+#btn:hover,#btn:focus-visible{background:#ffdf7a;outline:3px solid #3a2c2c}
+</style></head><body>
+<div id="wrap"><div id="stage"><canvas id="c" width="960" height="540"></canvas><button id="btn">↻ Replay</button></div><div id="cap"></div></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),W=960,H=540,cap=document.getElementById('cap'),btn=document.getElementById('btn');
+const TXT=["One day, an old man came to swim, but the workers were about to drain the deep pool.",
+"The lifeguard tried to drain it, but he couldn't because of how deep it was.",
+"He asked the old man to help. The old man agreed, but he couldn't swim. He could only relax in the pool.",
+"So the old man asked four kids. They went down, but the pressure of the water hurt too much.",
+"Then they asked a professional swimmer. He could swim well, but he wasn't good at diving. He still tried, and everyone cheered him on!",
+"They tried for an hour, until two adults offered to help. But they could only swim 3.1 metres!",
+"They didn't know what to do, until a diver came and offered to help. Thanks to him, they successfully drained the pool!"];
+const DUR=[6,6,7,7,8,8,10],END=DUR.reduce((a,b)=>a+b);
+const L=(a,b,p)=>a+(b-a)*Math.max(0,Math.min(1,p)),seg=(p,a,b)=>Math.max(0,Math.min(1,(p-a)/(b-a)));
+let T=0,last=null,ended=false,capIdx=-1,t=0,jt=0;
+const rnd=k=>{const s=Math.sin(jt*12.9898+k*78.233)*43758.5453;return s-Math.floor(s)};
+const FONT='"Chalkboard SE","Comic Sans MS",sans-serif';
+// paper grain
+const gr=document.createElement('canvas');gr.width=W;gr.height=H;{const g=gr.getContext('2d');for(let i=0;i<5000;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,255,.12)':'rgba(0,0,0,.07)';g.fillRect(Math.random()*W,Math.random()*H,1+Math.random()*2,1+Math.random()*2)}}
+function sh(){ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=3;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3}
+function rr(x,y,w,h,r,c,k=0){ctx.save();sh();ctx.fillStyle=c;ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(x+(rnd(k)-.5)*1.5,y+(rnd(k+1)-.5)*1.5,w,h,r);ctx.fill();ctx.stroke();ctx.restore()}
+function ci(x,y,r,c,k=0){ctx.save();sh();ctx.fillStyle=c;ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x+(rnd(k)-.5),y+(rnd(k+2)-.5),r,0,7);ctx.fill();ctx.stroke();ctx.restore()}
+function txt(s,x,y,sz,c){ctx.save();ctx.font='bold '+sz+'px '+FONT;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=c;ctx.fillText(s,x,y);ctx.restore()}
+function bub(s,x,y){ctx.save();ctx.font='bold 17px '+FONT;const w=ctx.measureText(s).width+24;sh();ctx.fillStyle='#fff';ctx.beginPath();ctx.roundRect(x-w/2,y-34,w,30,10);ctx.fill();ctx.beginPath();ctx.moveTo(x-6,y-6);ctx.lineTo(x+4,y-6);ctx.lineTo(x,y+7);ctx.fill();ctx.restore();txt(s,x,y-19,17,'#333')}
+function star(x,y,r,c,s){ctx.save();sh();ctx.fillStyle=c;ctx.beginPath();for(let i=0;i<16;i++){const a=i*Math.PI/8+t*.5,rad=i%2?r*.65:r;ctx.lineTo(x+Math.cos(a)*rad,y+Math.sin(a)*rad)}ctx.fill();ctx.restore();txt(s,x,y,r*.4,'#7a1f1f')}
+// people
+const OM={skin:'#e9b996',shirt:'#6fa38a',pants:'#6fa38a',hair:'#f2f2f2',stache:1},LG={skin:'#d9a07a',shirt:'#dd4b4b',pants:'#f4f4f4',hat:'#dd4b4b'},
+WK={skin:'#c98e66',shirt:'#f08a24',pants:'#555',hat:'#f5d020'},SW={skin:'#f0c4a0',shirt:'#2f6fd0',pants:'#2f6fd0',hat:'#2f6fd0',glass:'#9eeaf2'},
+A1={skin:'#c98e66',shirt:'#47a85c',pants:'#2d6a3b',hair:'#3b2a20'},A2={skin:'#f0c4a0',shirt:'#a25cc9',pants:'#5d3a7a',hair:'#8a5a2b'},
+DV={skin:'#e4b08c',shirt:'#f08a24',pants:'#d46f10',glass:'#222',tank:'#8c96a0'},
+KD=[{skin:'#f0c4a0',shirt:'#f2c744',pants:'#4a6fa5',hair:'#5a3a22'},{skin:'#b97c55',shirt:'#9a7be0',pants:'#4a6fa5',hair:'#222'},{skin:'#f0c4a0',shirt:'#f08aa8',pants:'#4a6fa5',hair:'#c9873a'},{skin:'#d9a07a',shirt:'#58b6e8',pants:'#4a6fa5',hair:'#222'}];
+function P(o,x,y,h,rot,aL,aR,mood,k){
+ ctx.save();ctx.translate(x+(rnd(k)-.5)*3,y+(rnd(k+9)-.5)*3);ctx.rotate(rot||0);const u=h/100;
+ if(o.tank)rr(-9*u,-68*u,18*u,34*u,6*u,o.tank,k);
+ rr(-11*u,-30*u,9*u,30*u,3*u,o.pants,k);rr(2*u,-30*u,9*u,30*u,3*u,o.pants,k);
+ rr(-14*u,-66*u,28*u,38*u,6*u,o.shirt,k);
+ [[-1,aL],[1,aR]].forEach(([s,a])=>{ctx.save();ctx.translate(s*15*u,-62*u);ctx.rotate(s<0?a:-a);rr(-3.5*u,0,7*u,28*u,3*u,o.shirt,k);ci(0,29*u,4.5*u,o.skin,k);ctx.restore()});
+ ci(0,-78*u,13*u,o.skin,k);
+ if(o.hair){ctx.fillStyle=o.hair;ctx.beginPath();ctx.arc(0,-79*u,13.5*u,Math.PI,0);ctx.fill()}
+ if(o.hat){rr(-14*u,-92*u,28*u,9*u,4*u,o.hat,k);rr(-4*u,-86*u,22*u,4*u,2*u,o.hat,k)}
+ if(o.glass)rr(-11*u,-83*u,22*u,8*u,4*u,o.glass,k);
+ ci(-5*u,-79*u,1.8*u,'#222');ci(5*u,-79*u,1.8*u,'#222');
+ if(o.stache)rr(-6*u,-74*u,12*u,3.5*u,2*u,'#eee',k);
+ ctx.strokeStyle='#733';ctx.lineWidth=1.6;ctx.beginPath();
+ if(mood=='ouch')ctx.arc(0,-69*u,4*u,Math.PI,0);else ctx.arc(0,-73*u,4.5*u,.1,Math.PI-.1);ctx.stroke();
+ ctx.restore()}
+function kid(i,x,y,rot,aL,aR,m){P(KD[i],x,y,80,rot,aL,aR,m,20+i*3)}
+// background
+function bg(){
+ ctx.fillStyle='#bfe6f5';ctx.fillRect(0,0,W,H);
+ ctx.save();ctx.translate(840,80);ctx.rotate(Math.floor(t*3)*.12);ctx.fillStyle='#ffb52e';for(let i=0;i<12;i++){ctx.rotate(Math.PI/6);ctx.beginPath();ctx.moveTo(-9,-50);ctx.lineTo(9,-50);ctx.lineTo(0,-72);ctx.fill()}ctx.restore();ci(840,80,42,'#ffcf4a',3);
+ for(let i=0;i<3;i++){const x=((100+i*330+t*8)%(W+240))-120,y=60+i*38;ci(x,y,26,'#fff',5+i);ci(x+30,y-10,32,'#fff',6+i);ci(x+64,y,24,'#fff',7+i)}
+ ci(500,340,210,'#9bd88a',8);ci(110,330,105,'#6fbf63',9);ci(870,335,95,'#5aa85a',10);
+ rr(-10,300,W+20,250,0,'#e2b97d',11);
+ ctx.fillStyle='#c99e62';for(let i=0;i<10;i++)ctx.fillRect(i*100+((i*37)%40),330+(i%3)*50,40,4);
+ rr(280,300,520,200,0,'#3aa6a0',12);ctx.fillStyle='rgba(0,0,0,.14)';ctx.fillRect(280,300,520,16);
+ ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=2;for(let x=280;x<=800;x+=40){ctx.beginPath();ctx.moveTo(x,316);ctx.lineTo(x,486);ctx.stroke()}for(let y=330;y<490;y+=40){ctx.beginPath();ctx.moveTo(280,y);ctx.lineTo(800,y);ctx.stroke()}
+ rr(280,486,520,14,0,'#2b8c88',13);rr(268,292,544,10,3,'#f4ede0',14);rr(515,492,50,10,5,'#3a3a3a',15)}
+function plug(dx,dy,r){ctx.save();ctx.translate(540+dx,494+dy);ctx.rotate(r);rr(-18,-5,36,10,5,'#b9bfc6',16);ctx.restore()}
+function water(wt){if(wt>=499)return;ctx.save();ctx.beginPath();ctx.rect(280,300,520,200);ctx.clip();
+ [['#2a7fc4',4,.5],['#52a8e8',0,.55]].forEach(([c,o,a])=>{ctx.globalAlpha=a;ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(280,500);for(let x=280;x<=800;x+=20)ctx.lineTo(x,wt+o+Math.sin(x*.06+t*(o?4:-4))*3);ctx.lineTo(800,500);ctx.fill()});ctx.restore()}
+function ruler(si,wt){if(si<1)return;ctx.save();ctx.strokeStyle='#fff';ctx.setLineDash([6,5]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(785,Math.max(wt,330));ctx.lineTo(785,500);ctx.stroke();ctx.restore();
+ rr(715,455,62,24,5,'#fff6dc',17);txt('4.8 m',746,467,15,'#333');
+ if(si==5){ctx.save();ctx.strokeStyle='#ffe14a';ctx.setLineDash([8,6]);ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(300,440);ctx.lineTo(785,440);ctx.stroke();ctx.restore();rr(715,413,62,24,5,'#ffe14a',18);txt('3.1 m',746,425,15,'#333')}}
+function cheer(list){list.forEach(([c,x,h,k,kd])=>{const s=Math.sin(t*9+k);const y=300-Math.abs(Math.sin(t*6+k))*10;kd?kid(c,x,y,0,2.7+.3*s,2.7-.3*s,'smile'):P(c,x,y,h,0,2.7+.3*s,2.7-.3*s,'smile',k)})}
+const dive=(i,x)=>x;
+const S=[
+p=>{const w=L(-60,200,seg(p,0,.6)),m=p<.6,s=m?Math.sin(t*9)*.5:0;
+ rr(380,150,300,46,6,'#fff1a8',30);txt('POOL DRAINING TODAY',530,173,22,'#a33');
+ ctx.strokeStyle='#8a6a3a';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(400,150);ctx.lineTo(400,120);ctx.moveTo(660,150);ctx.lineTo(660,120);ctx.stroke();
+ P(LG,850,300,125,0,.2,2.6+Math.sin(t*8)*.3,'smile',1);P(WK,915,300,110,0,2.6+Math.sin(t*8+1)*.3,.2,'smile',2);
+ P(OM,w,300-Math.abs(s)*8,118,0,s,-s,'smile',3);if(p>.7)txt('?',w,150,44,'#d33')},
+p=>{P(OM,200,300,118,0,.1,.1,'smile',3);P(LG,850,300,125,0,1.3+Math.sin(t*10)*.3,1.3-Math.sin(t*10)*.3,'ouch',1);
+ ci(825+Math.sin(t*5)*3,200+(t*40%30),3,'#6cf');
+ for(let i=0;i<4;i++)ci(540+Math.sin(t*3+i*2)*8,490-((t*30+i*35)%90),4+i%2*2,'rgba(255,255,255,.7)');
+ txt('glug…',540,420+Math.sin(t*6)*3,20,'#fff');plug(0,0,0);if(p>.55)bub('Too deep!',850,170)},
+p=>{const j=seg(p,.3,.45),hop=Math.sin(j*Math.PI)*40;
+ P(LG,110,300,125,0,.2,2.6,'smile',1);if(p<.3)bub('Can you help?',110,165);
+ if(p<.3)P(OM,L(200,260,p/.3),300,118,0,.1,.1,'smile',3);
+ else if(p<.45)P(OM,L(260,420,j),300-hop,118,0,1.5,1.5,'smile',3);
+ else{P(OM,430,330+Math.sin(t*3)*3,118,-Math.PI/2,1.1,1.1,'smile',3);if(p>.6)bub("I can't swim!",370,300)}plug(0,0,0)},
+p=>{P(LG,110,300,125,0,.2,.2,'smile',1);P(OM,430,330+Math.sin(t*3)*3,118,-Math.PI/2,1.1,1.1,'smile',3);if(p<.2)bub('Please help!',370,300);
+ for(let i=0;i<4;i++){const q=p-.12-i*.025,x0=820+i*38;let x=L(x0,680-i*45,seg(q,0,.25)),y=300,r=0,m='smile',a=.8;
+  if(q<0)y=300;else if(q<.1){y=300-Math.sin(seg(q,0,.1)*Math.PI)*30}
+  else if(q<.4){y=L(300,395,seg(q,.1,.4));r=Math.PI}
+  else if(q<.65){y=395;r=Math.PI;m='ouch';a=2.4}
+  else{y=L(395,335,seg(q,.65,.9));r=Math.PI*(1-seg(q,.7,.95));a=2.4}
+  kid(i,x,y,r,a,a,m)}
+ if(p>.52&&p<.8)star(600,400,48,'#ffe14a','OUCH!');plug(0,0,0)},
+p=>{cheer([[LG,110,125,1],[0,830,0,2,1],[1,868,0,3,1],[2,906,0,4,1],[3,944,0,5,1]]);
+ P(OM,400,330+Math.sin(t*3)*3,118,-Math.PI/2,1.1,1.1,'smile',3);
+ if(p<.5){const x=L(200,700,seg(p,.04,.5)),a=1.5+Math.sin(t*10)*1.2;P(SW,x,326+Math.sin(t*6)*2,110,Math.PI/2,a,3-a,'smile',6)}
+ else{const y=326+L(0,28,seg(p,.5,.65))-L(0,28,seg(p,.8,1));P(SW,700,y,110,2.5+Math.sin(t*5)*.25,1,1,'ouch',6);if(p>.55&&p<.8)star(700,300,38,'#ffe14a','SPLASH')}
+ bub(p%.3<.15?'Go! Go!':'You can do it!',110,170);plug(0,0,0)},
+p=>{cheer([[LG,110,125,1],[0,830,0,2,1],[3,944,0,5,1]]);P(OM,400,330+Math.sin(t*3)*3,118,-Math.PI/2,1.1,1.1,'smile',3);
+ const d=seg(p,.1,.4),u=seg(p,.7,.95),y=300+L(0,45,d)-L(0,45,u),r=Math.PI*(1-seg(p,.72,.95)),m=p>.4&&p<.7?'ouch':'smile';
+ [[A1,470,5],[A2,570,6]].forEach(([c,x,k])=>P(c,x,p<.1?300:y,110,p<.1?0:r,1,1,m,k));
+ if(p<.5){ctx.save();ctx.translate(100,100);ci(0,0,40,'#fff');ctx.strokeStyle='#333';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(t*5)*30,Math.sin(t*5)*30);ctx.stroke();ctx.restore();txt('1 hour',100,155,20,'#333')}
+ if(p>.45&&p<.75)bub('Too deep!',520,395);plug(0,0,0)},
+p=>{const out=p>.55,fly=seg(p,.55,.75),clr=p>.6;
+ const stand=[[LG,70,125,1],[OM,150,118,3],[SW,230,110,6]];
+ if(clr){cheer(stand);cheer([[A1,830,110,5],[A2,925,110,6],[0,850,0,2,1],[1,885,0,3,1],[2,915,0,4,1],[3,945,0,5,1]])}
+ else{stand.forEach(([c,x,h,k])=>P(c,x,300,h,0,.1,.1,'smile',k))}
+ if(p<.25)P(DV,L(-60,200,p/.25),300-Math.abs(Math.sin(t*9))*5,120,0,Math.sin(t*9)*.5,-Math.sin(t*9)*.5,'smile',7);
+ else if(p<.4){const j=seg(p,.25,.4);P(DV,L(200,540,j),300-Math.sin(j*Math.PI)*70+j*40,120,L(0,Math.PI,j),.8,.8,'smile',7)}
+ else if(p<.55)P(DV,540,L(340,375,seg(p,.4,.55)),120,Math.PI,.8,.8,'smile',7);
+ else P(DV,540,500,120,0,.2,2.7+Math.sin(t*9)*.4,'smile',7);
+ plug(out?0:0,out?-fly*140:0,out?fly*9:0);
+ if(out&&p<.92){ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=3;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(540,488,16+i*12,t*5+i,t*5+i+3);ctx.stroke()}}}
+];
+function draw(){
+ jt=Math.floor(T*8);t=Math.floor(T*12)/12;
+ let si=0,acc=0,tt=Math.min(t,END-.01);while(si<6&&tt>=acc+DUR[si]){acc+=DUR[si];si++}
+ const p=Math.min(1,(tt-acc)/DUR[si]);
+ if(!ended&&T>=END){ended=true;btn.classList.add('show');setCap('The End!')}
+ if(si!==capIdx&&!ended){capIdx=si;setCap(TXT[si])}
+ const wt=si==6?L(330,500,seg(p,.55,.92)):330;
+ ctx.clearRect(0,0,W,H);bg();S[si](p);water(wt);ruler(si,wt);
+ if(si==6&&p>.85||ended){for(let i=0;i<45;i++){ctx.save();ctx.translate((i*97)%W+Math.sin(t*3+i)*12,((t*70+i*53)%(H+40))-20);ctx.rotate(t*2+i);ctx.fillStyle=['#f25f5c','#ffe066','#247ba0','#70c1b3','#c77dff'][i%5];ctx.fillRect(-5,-3,10,6);ctx.restore()}}
+ ctx.globalAlpha=.55;ctx.drawImage(gr,0,0);ctx.globalAlpha=1}
+function setCap(s){cap.style.opacity=0;setTimeout(()=>{cap.textContent=s;cap.style.opacity=1},300)}
+function loop(ts){if(last===null)last=ts;const dt=Math.min(.1,(ts-last)/1000);last=ts;if(!ended)T+=dt;else T+=dt;draw();requestAnimationFrame(loop)}
+btn.onclick=()=>{T=0;ended=false;capIdx=-1;btn.classList.remove('show')};
+requestAnimationFrame(loop);
+</script></body></html>

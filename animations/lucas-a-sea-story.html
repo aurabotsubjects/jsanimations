@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A Sea Story</title>
+<style>
+html,body{margin:0;height:100%;background:#16222e;overflow:hidden;font-family:"Chalkboard SE","Comic Sans MS","Marker Felt","Segoe Print",cursive,sans-serif}
+#stage{position:absolute;left:50%;top:50%;width:min(100vw,177.78vh);aspect-ratio:16/9;transform:translate(-50%,-50%);--u:calc(min(100vw,177.78vh)/100);overflow:hidden}
+svg{width:100%;height:100%;display:block}
+.p{filter:url(#paper)}
+.w{transform-box:fill-box;transform-origin:center;animation:jig .6s steps(1) infinite}
+.hard{animation:hd .22s steps(1) infinite}
+.tw,.sw{animation:tw .7s steps(1) infinite}
+.sw{animation-duration:1.3s}
+@keyframes jig{0%{transform:rotate(-1.5deg)}34%{transform:rotate(1.2deg) translate(1px,-1px)}67%{transform:rotate(-.5deg) translate(-1px,1px)}}
+@keyframes hd{0%{transform:rotate(-6deg) translate(-3px,0)}50%{transform:rotate(6deg) translate(3px,2px)}}
+@keyframes tw{0%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+@keyframes cp{0%{transform:rotate(-1.6deg) scale(.95)}100%{transform:rotate(-.4deg) scale(1)}}
+.card{background:#fff6e0;color:#3b2a1a;border:calc(var(--u)*.25) dashed #d9b97a;border-radius:calc(var(--u)*.8);box-shadow:calc(var(--u)*.35) calc(var(--u)*.45) 0 rgba(10,34,54,.35)}
+#cap{position:absolute;left:5%;right:5%;bottom:3%;text-align:center;font-size:calc(var(--u)*2.1);line-height:1.3;padding:.5em .9em;opacity:0;transform:rotate(-.4deg);animation:cp .3s steps(3) both}
+#title,#end{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-1.5deg);text-align:center;padding:calc(var(--u)*2.5) calc(var(--u)*6);transition:opacity .6s}
+#title h1{margin:0;font-size:calc(var(--u)*7);font-weight:700;color:#c2410c}
+#title p,#end p{margin:calc(var(--u)*1) 0 0;font-size:calc(var(--u)*2.8)}
+#end{display:none;top:42%}
+#end p{font-size:calc(var(--u)*5);margin:0 0 calc(var(--u)*1.5)}
+#replay{font:inherit;font-size:calc(var(--u)*2.6);padding:.4em 1.2em;color:#fff;background:#e0572b;border:calc(var(--u)*.25) solid #fff6e0;border-radius:calc(var(--u)*.8);cursor:pointer;box-shadow:calc(var(--u)*.3) calc(var(--u)*.4) 0 rgba(10,34,54,.4)}
+#replay:hover,#replay:focus-visible{background:#c2410c;outline:calc(var(--u)*.3) solid #ffe27a}
+.hide{opacity:0}
+@media (prefers-reduced-motion:reduce){.w,.tw,.sw{animation:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="svg" viewBox="0 0 800 450" preserveAspectRatio="xMidYMid slice" aria-label="Paper cut-out animation of a sea story">
+<defs>
+<filter id="paper" x="-15%" y="-15%" width="130%" height="140%">
+<feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="3" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="5" result="d"/>
+<feDropShadow in="d" dx="2" dy="3" stdDeviation="2" flood-color="#0a2236" flood-opacity=".4"/>
+</filter>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" seed="8"/>
+<feColorMatrix values="0 0 0 0 .3  0 0 0 0 .22  0 0 0 0 .12  1.6 0 0 0 -.5"/></filter>
+</defs>
+<g id="L"></g>
+<rect width="800" height="450" filter="url(#grain)" opacity=".4" style="mix-blend-mode:multiply;pointer-events:none"/>
+</svg>
+<div id="cap" class="card" aria-live="polite"></div>
+<div id="title" class="card"><h1>A Sea Story</h1><p>by Lucas</p></div>
+<div id="end" class="card"><p>The End</p><button id="replay">Replay</button></div>
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg',$=id=>document.getElementById(id),L=$('L'),cap=$('cap');
+const SHAPES=['rect','circle','ellipse','path','polygon'];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function el(t,a,p){
+  const e=document.createElementNS(NS,t);a=a||{};
+  if(SHAPES.includes(t)&&a.fill!=='none'&&!a.stroke)
+    for(const[k,v]of Object.entries({stroke:'#fffaf0','stroke-width':4,'paint-order':'stroke','stroke-linejoin':'round'}))e.setAttribute(k,v);
+  for(const k in a){if(k==='text')e.textContent=a[k];else e.setAttribute(k,a[k]);}
+  if(p)p.appendChild(e);return e;
+}
+const wave=(y,a,l,fill,p)=>{let d=`M0,${y}Q${l/4},${y-a} ${l/2},${y}`;for(let x=l;x<=840;x+=l/2)d+=`T${x},${y}`;return el('path',{d:d+'L840,450L0,450Z',fill},p)};
+
+/* ---------- characters (all drawn around 0,0) ---------- */
+const diver=p=>{
+  el('rect',{x:-36,y:-32,width:20,height:48,rx:7,fill:'#f2b134'},p);
+  el('rect',{x:-12,y:16,width:12,height:34,rx:6,fill:'#25406b'},p);
+  el('rect',{x:6,y:16,width:12,height:34,rx:6,fill:'#25406b'},p);
+  el('path',{d:'M-14,50l-18,10l6,6l24,-4zM6,50l-16,12l8,5l22,-6z',fill:'#f2b134'},p);
+  el('rect',{x:-14,y:-30,width:38,height:56,rx:16,fill:'#2c4a7c'},p);
+  el('rect',{x:10,y:-22,width:32,height:11,rx:5.5,fill:'#2c4a7c',transform:'rotate(-25 10 -16)'},p);
+  el('circle',{cx:42,cy:-31,r:6,fill:'#f4c9a0'},p);
+  el('circle',{cx:8,cy:-46,r:16,fill:'#f4c9a0'},p);
+  el('path',{d:'M-8,-46a16,16 0 0 1 32,0z',fill:'#1d2f52'},p);
+  el('rect',{x:10,y:-52,width:18,height:12,rx:5,fill:'#9fe8f5',stroke:'#1b2b45','stroke-width':3},p);
+  el('path',{d:'M12,-36q5,5 10,0',fill:'none',stroke:'#7a3b2e','stroke-width':2.5,'stroke-linecap':'round'},p);
+};
+const fish=p=>{
+  el('polygon',{points:'28,0 58,-20 58,20',fill:'#ef6c3e'},p);
+  el('ellipse',{rx:36,ry:22,fill:'#ff8a5b'},p);
+  el('path',{d:'M-6,-21q14,21 0,42',fill:'none',stroke:'#fff3d6','stroke-width':6,'stroke-linecap':'round'},p);
+  el('polygon',{points:'-4,-20 10,-34 18,-18',fill:'#ef6c3e'},p);
+  el('circle',{cx:-20,cy:-5,r:7,fill:'#fff'},p);el('circle',{cx:-22,cy:-5,r:3,fill:'#222',stroke:'none'},p);
+  el('path',{d:'M-35,5q4,3 8,0',fill:'none',stroke:'#7a2e12','stroke-width':2.5,'stroke-linecap':'round'},p);
+};
+const dolphin=p=>{
+  el('path',{d:'M-70,6L-52,-2Q-44,-26 -6,-28Q40,-28 64,-4L88,-26L90,10L64,6Q30,24 -8,18Q-34,14 -52,12Z',fill:'#7fa8d6'},p);
+  el('path',{d:'M-8,-27L10,-54L24,-26Z',fill:'#6590c2'},p);
+  el('path',{d:'M-50,11Q-8,24 44,6Q0,14 -50,11Z',fill:'#e6f1fb',stroke:'none'},p);
+  el('circle',{cx:-38,cy:-8,r:6,fill:'#fff'},p);el('circle',{cx:-40,cy:-8,r:3,fill:'#222',stroke:'none'},p);
+  el('path',{d:'M-66,6q8,4 16,1',fill:'none',stroke:'#35557d','stroke-width':2.5,'stroke-linecap':'round'},p);
+};
+const shark=p=>{
+  el('path',{d:'M-82,6Q-44,-26 18,-24Q52,-22 72,-4L98,-36L92,0L102,32L70,10Q22,30 -42,22Q-72,18 -82,6Z',fill:'#7f8fa3'},p);
+  el('path',{d:'M-12,-23L6,-58L28,-22Z',fill:'#6b7a8f'},p);
+  el('path',{d:'M-72,8Q-34,22 24,17Q-30,34 -72,8Z',fill:'#f3f7fa',stroke:'none'},p);
+  el('path',{d:'M-20,-8q-4,8 0,16M-8,-8q-4,8 0,16',fill:'none',stroke:'#566379','stroke-width':3,'stroke-linecap':'round'},p);
+  el('circle',{cx:-50,cy:-6,r:6,fill:'#fff'},p);el('circle',{cx:-52,cy:-6,r:3,fill:'#222',stroke:'none'},p);
+  el('path',{d:'M-74,9l5,9l5,-7l5,9l5,-8l5,8l4,-8z',fill:'#fff',stroke:'none'},p);
+};
+const kraken=p=>{
+  for(let i=0;i<6;i++){const x=-45+i*18,s=i%2?-1:1;
+    el('path',{d:`M${x},0q${24*s},32 0,64t0,64`,fill:'none',stroke:'#7b4399','stroke-width':18,'stroke-linecap':'round',class:'tw',style:`transform-origin:${x}px 0px;animation-delay:${i*.12}s`},p);}
+  el('ellipse',{cx:0,cy:-40,rx:62,ry:66,fill:'#8e52b8'},p);
+  [[-30,-70],[26,-80],[34,-50]].forEach(([x,y])=>el('circle',{cx:x,cy:y,r:7,fill:'#a874cf',stroke:'none'},p));
+  [-22,22].forEach(x=>{el('ellipse',{cx:x,cy:-44,rx:13,ry:16,fill:'#fff'},p);el('circle',{cx:x*.8,cy:-42,r:6,fill:'#222',stroke:'none'},p);});
+  el('path',{d:'M-38,-72L-10,-60M38,-72L10,-60',fill:'none',stroke:'#3d1d52','stroke-width':6,'stroke-linecap':'round'},p);
+  el('path',{d:'M-24,-8q24,16 48,0',fill:'none',stroke:'#3d1d52','stroke-width':4,'stroke-linecap':'round'},p);
+  el('path',{d:'M-14,-6l4,8l5,-7l5,8l5,-8l4,7',fill:'#fff',stroke:'none'},p);
+};
+const moon=p=>{
+  el('circle',{r:50,fill:'#fff6b8',opacity:.55,stroke:'none'},p);
+  el('polygon',{points:'30,0 56,-22 56,22',fill:'#f4b6c8'},p);
+  el('ellipse',{rx:36,ry:34,fill:'#ffe27a'},p);
+  el('path',{d:'M-14,-30q22,30 0,60',fill:'none',stroke:'#fff3b0','stroke-width':7,'stroke-linecap':'round'},p);
+  el('polygon',{points:'-6,-33 8,-50 18,-31',fill:'#f4b6c8'},p);
+  el('circle',{cx:-18,cy:-6,r:8,fill:'#fff'},p);el('circle',{cx:-20,cy:-6,r:4,fill:'#222',stroke:'none'},p);
+  el('circle',{cx:-8,cy:10,r:6,fill:'#ff9ab5',opacity:.7,stroke:'none'},p);
+  el('path',{d:'M-34,8q6,5 12,0',fill:'none',stroke:'#a8641f','stroke-width':2.5,'stroke-linecap':'round'},p);
+};
+
+/* ---------- helpers ---------- */
+let world,topL,ambL,amb,D,F,Dl,Sh,K,M,T;
+function place(g,x,y){g._p=[x,y];g.style.transform=`translate(${x}px,${y}px)`}
+function face(g,d){g._dir=d;g._f.setAttribute('transform',`scale(${d*g._d0*g._s},${g._s})`)}
+function mk(draw,x,y,s,d0,d){
+  const o=el('g',{},world),f=el('g',{},o),w=el('g',{class:'w'},f),p=el('g',{class:'p'},w);
+  draw(p);Object.assign(o,{_f:f,_s:s,_d0:d0});place(o,x,y);face(o,d);return o;
+}
+function go(g,pts,ms){
+  const k=[g._p,...pts].map((q,i,A)=>({transform:`translate(${q[0]}px,${q[1]}px)`,easing:`steps(${Math.max(2,Math.round(ms/(A.length-1)/110))},end)`}));
+  const last=pts[pts.length-1];g._p=last;
+  const an=g.animate(k,{duration:ms,fill:'forwards'});
+  return an.finished.then(()=>{g.style.transform=`translate(${last[0]}px,${last[1]}px)`;an.cancel()});
+}
+const jolt=g=>{const[x,y]=g._p;return go(g,[[x+16,y-10],[x-14,y+8],[x+8,y-4],[x,y]],450)};
+const hop=g=>{const[x,y]=g._p;return go(g,[[x,y-16],[x,y],[x,y-16],[x,y]],900)};
+async function grow(g,arr){for(const s of arr){g._s=s;face(g,g._dir);await sleep(130)}}
+function bub(x,y,r){
+  const c=el('circle',{r,fill:'rgba(255,255,255,.35)',stroke:'#fff','stroke-width':2},ambL),f=Math.random()*30-15;
+  c.style.transform=`translate(${x}px,${y}px)`;
+  c.animate([{transform:`translate(${x}px,${y}px)`},{transform:`translate(${x+f}px,-20px)`}],{duration:(y+20)*22,easing:'steps(40,end)'}).onfinish=()=>c.remove();
+}
+function pop(g,t,dy){
+  const[x,y]=g._p,w=t.length*12+30,o=el('g',{},topL),i=el('g',{class:'p'},o);
+  o.style.transform=`translate(${x}px,${y-(dy||60)}px)`;
+  el('rect',{x:-w/2,y:-22,width:w,height:36,rx:14,fill:'#fff'},i);
+  el('polygon',{points:'-8,13 8,13 0,28',fill:'#fff'},i);
+  el('text',{x:0,y:5,'text-anchor':'middle','font-size':20,fill:'#3b2a1a',text:t},i);
+  i.animate([{transform:'scale(.2)'},{transform:'scale(1)'}],{duration:300,easing:'steps(3,end)'});
+  setTimeout(()=>o.remove(),1800);
+}
+function burst(x,y,t){
+  const o=el('g',{},topL),i=el('g',{class:'p'},o);o.style.transform=`translate(${x}px,${y}px)`;
+  const pts=Array.from({length:16},(_,n)=>{const r=n%2?26:44,a=n*Math.PI/8;return(Math.cos(a)*r).toFixed(1)+','+(Math.sin(a)*r).toFixed(1)}).join(' ');
+  el('polygon',{points:pts,fill:'#ffd23f'},i);
+  el('text',{y:6,'text-anchor':'middle','font-size':16,'font-weight':'bold',fill:'#b8321a',text:t||'CHOMP!'},i);
+  i.animate([{transform:'scale(.2) rotate(-20deg)'},{transform:'scale(1.15) rotate(6deg)'},{transform:'scale(1)'}],{duration:600,easing:'steps(4,end)'});
+  setTimeout(()=>o.remove(),900);
+}
+async function bite(a,b){
+  const[ax,ay]=a._p,[bx,by]=b._p;face(a,bx<ax?-1:1);
+  await go(a,[[ax+(bx-ax)*.78,ay+(by-ay)*.78]],500);
+  burst(bx,by);
+  await Promise.all([jolt(b),go(a,[[ax,ay]],600)]);
+}
+function say(t){
+  cap.textContent=t;cap.style.opacity=1;cap.style.animation='none';cap.offsetWidth;cap.style.animation='';
+  return sleep(Math.max(1500,t.split(' ').length*300+500));
+}
+const S=(t,f)=>Promise.all([say(t),f&&f()]);
+
+/* ---------- the paper sea ---------- */
+function build(){
+  L.innerHTML='';
+  const bg=el('g',{class:'p'},L);
+  el('rect',{width:800,height:450,fill:'#cdeff5',stroke:'none'},bg);
+  el('circle',{cx:720,cy:30,r:42,fill:'#ffe27a'},bg);
+  [[30,'#7fd3e6'],[95,'#5bbdd9'],[170,'#43a5cb'],[250,'#3189b6'],[330,'#256f9e']].forEach(([y,c],i)=>wave(y,8,150+i*20,c,bg));
+  wave(395,6,170,'#f0d38f',bg);wave(425,5,130,'#dfb86a',bg);
+  [[60,432,16],[250,438,12],[430,430,18],[600,440,14],[760,430,12]].forEach(([x,y,r])=>el('ellipse',{cx:x,cy:y,rx:r,ry:r*.6,fill:'#c9a35a'},bg));
+  [[690,396,'#ff7a90'],[40,396,'#ff9a6b']].forEach(([x,y,c])=>el('path',{d:`M${x},${y}v-40M${x},${y-20}l-14,-18M${x},${y-30}l14,-16`,fill:'none',stroke:c,'stroke-width':10,'stroke-linecap':'round'},bg));
+  const pl=el('g',{class:'p'},L);
+  [[20,'#2f9e5b'],[210,'#48b878'],[330,'#2f9e5b'],[470,'#3fb36b'],[560,'#2f9e5b'],[610,'#48b878'],[770,'#3fb36b']].forEach(([x,c],i)=>
+    el('path',{d:`M${x},415q-20,-30 0,-60t0,-60t0,-60`,fill:'none',stroke:c,'stroke-width':12,'stroke-linecap':'round',class:'sw',style:`transform-origin:${x}px 415px;animation-delay:${i*.2}s`},pl));
+  ambL=el('g',{},L);world=el('g',{},L);topL=el('g',{},L);
+  D=mk(diver,-100,160,1.1,1,1);
+  T=el('g',{class:'p',style:'transform-origin:130px 322px'},world);
+  [[125,300,30,9,-8],[125,322,36,11,6],[125,343,32,10,-5]].forEach(([x,y,rx,ry,r])=>el('ellipse',{cx:x,cy:y,rx,ry,fill:'none',stroke:'#2e9b5a','stroke-width':9,transform:`rotate(${r} ${x} ${y})`},T));
+  el('path',{d:'M104,400Q82,360 106,338M156,400Q176,360 150,324',fill:'none',stroke:'#3fb36b','stroke-width':10,'stroke-linecap':'round'},T);
+  T.style.opacity=0;
+  F=mk(fish,900,320,1,-1,-1);Dl=mk(dolphin,900,250,1,-1,-1);Sh=mk(shark,900,315,1.15,-1,-1);
+  K=mk(kraken,690,560,1.25,-1,-1);M=mk(moon,900,90,1,-1,-1);M._g=M.querySelector('circle');
+  clearInterval(amb);
+  amb=setInterval(()=>{bub(D._p[0]+20,D._p[1]-55,3+Math.random()*3);if(Math.random()<.6)bub(Math.random()*800,420,3+Math.random()*5)},500);
+}
+
+/* ---------- the story ---------- */
+async function play(){
+  build();cap.style.opacity=0;$('end').style.display='none';$('title').classList.remove('hide');
+  await sleep(3200);$('title').classList.add('hide');await sleep(700);
+  await S('Once upon a time, there was a scuba diver.',()=>go(D,[[330,160]],3200));
+  await S('He loved to go exploring in the sea.',()=>go(D,[[450,230],[540,170],[420,200]],3500));
+  await S('On his expedition, he found a moon fish.',async()=>{
+    face(D,1);await go(M,[[600,100]],1800);await sleep(1200);await go(M,[[900,90]],1500)});
+  await S('But he got tangled in seaweed.',async()=>{
+    face(D,-1);await go(D,[[300,240],[130,285]],2400);face(D,1);
+    T.style.opacity=1;T.animate([{transform:'scale(.1)',opacity:0},{transform:'scale(1)',opacity:1}],{duration:700,easing:'steps(5,end)'});});
+  const dw=D.querySelector('.w');dw.classList.add('hard');
+  await say('He pulled, and pulled, but he was still stuck.');dw.classList.remove('hard');
+  await S('Then a fish came swimming along.',()=>go(F,[[290,320]],2600));
+  await say('The diver asked the fish to nibble on the seaweed.');
+  await S('But the fish said no.',()=>pop(F,'No!',45));
+  await S('Then came a dolphin.',()=>go(Dl,[[700,60],[540,80],[400,175]],2600));
+  await say('The diver asked, \u201CCan you nibble the fish, because the fish won\u2019t nibble the seaweed?\u201D');
+  await S('But the dolphin wouldn\u2019t do it.',()=>pop(Dl,'No way!',65));
+  await S('Then came a shark!',()=>go(Sh,[[525,315]],2400));
+  await say('The diver shouted, \u201CShark, can you bite the dolphin, because the dolphin won\u2019t nibble the fish and the fish won\u2019t nibble the seaweed?\u201D');
+  await S('Then came the big kraken.',()=>go(K,[[690,200]],2400));
+  await say('The diver said, \u201CKraken, can you bite the shark, because the shark won\u2019t bite the dolphin and the dolphin won\u2019t nibble the fish and the fish won\u2019t nibble the seaweed, and I\u2019m still tangled.\u201D');
+  await S('Then came the incredible moon fish.',()=>go(M,[[600,60],[250,95]],2800));
+  await say('The diver shouted, \u201CMoon fish, can you bite the kraken, because the kraken won\u2019t bite the shark and the shark won\u2019t bite the dolphin and the dolphin won\u2019t nibble the fish and the fish won\u2019t nibble the seaweed?\u201D');
+  await S('\u201COnly if you give me an air bubble,\u201D said the moon fish.',()=>pop(M,'Air bubble!',70));
+  const B=el('g',{class:'p'},world);
+  el('circle',{r:16,fill:'rgba(255,255,255,.4)',stroke:'#fff','stroke-width':3},B);el('path',{d:'M-8,-6a9,9 0 0 1 8,-7',fill:'none',stroke:'#fff','stroke-width':3,'stroke-linecap':'round'},B);
+  place(B,D._p[0]+45,D._p[1]-30);
+  await S('So the diver pushed an air bubble to him.',()=>go(B,[[200,200],[250,130],[M._p[0]-30,M._p[1]]],3000));
+  await S('The moon fish sucked the air bubble,',async()=>{
+    await go(B,[[M._p[0]-36,M._p[1]]],500);B.remove();
+    M._g.setAttribute('r',68);M._g.setAttribute('opacity',.85);await grow(M,[1.2,1.4,1.6]);});
+  await S('and he bit the kraken,',()=>bite(M,K));
+  await S('and the kraken bit the shark',()=>bite(K,Sh));
+  await S('and the shark bit the dolphin',()=>bite(Sh,Dl));
+  await S('and the dolphin bit the fish',()=>bite(Dl,F));
+  await S('and the fish nibbled the seaweed',async()=>{
+    face(F,-1);await go(F,[[205,318]],900);burst(185,318,'NOM!');
+    await go(F,[[195,318],[205,318],[195,318],[205,318]],700);
+    T.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(1.6) rotate(20deg)'}],{duration:900,easing:'steps(6,end)',fill:'forwards'});});
+  await S('and the diver swam up.',async()=>{
+    await sleep(600);face(D,1);
+    go(D,[[150,200],[200,60],[260,-130]],3400);
+    await sleep(1400);await Promise.all([F,Dl,Sh,K,M].map(hop));});
+  await say('The End.');
+  clearInterval(amb);cap.style.opacity=0;
+  $('end').style.display='block';
+}
+$('replay').addEventListener('click',play);
+play();
+</script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Zoo Chase</title>
+<style>
+html,body{margin:0;height:100%;background:#2b2118;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#wrap{width:960px;height:540px;position:relative;flex:none}
+#stage{position:absolute;inset:0;overflow:hidden;background:#a6dcee;font-family:"Chalkboard SE","Marker Felt","Comic Sans MS","Comic Neue",cursive;color:#3a2a1a}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:4000;background:repeating-linear-gradient(45deg,rgba(255,255,255,.035) 0 2px,rgba(0,0,0,.025) 2px 4px)}
+#bg,#cast{position:absolute;inset:0}
+.actor{position:absolute;filter:drop-shadow(3px 4px 0 rgba(0,0,0,.3))}
+.flip{width:100%;height:100%}
+svg{display:block;overflow:visible}
+svg.paper *{stroke:#fffdf5;stroke-width:4;stroke-linejoin:round;paint-order:stroke}
+svg.paper .ln{stroke:#222;stroke-width:2;fill:none;stroke-linecap:round}
+svg.paper .eye,svg.paper .ns{stroke:none}
+.bob{animation:jit .7s steps(1) infinite;transform-origin:50% 100%}
+.bob.walk{animation:hop .32s steps(1) infinite}
+.bob.talk{animation:talk .5s steps(1) infinite}
+.bob.shake{animation:shake .12s steps(1) infinite}
+@keyframes jit{0%{transform:rotate(-1.2deg)}50%{transform:rotate(1.2deg)}}
+@keyframes hop{0%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-9px) rotate(4deg)}}
+@keyframes talk{0%{transform:rotate(-2deg) scaleY(1)}50%{transform:rotate(2deg) scaleY(1.03)}}
+@keyframes shake{0%{transform:translate(-4px,0) rotate(-5deg)}50%{transform:translate(4px,-5px) rotate(5deg)}}
+.c1{animation:drift 16s ease-in-out infinite alternate}
+.c2{animation:drift 22s ease-in-out infinite alternate-reverse}
+@keyframes drift{to{transform:translateX(60px)}}
+.bubble{position:absolute;z-index:3000;width:max-content;max-width:300px;box-sizing:border-box;background:#fffdf3;padding:10px 16px;border-radius:6px 16px 8px 14px;font-size:20px;line-height:1.25;box-shadow:3px 4px 0 rgba(0,0,0,.28);transform:rotate(-1deg);animation:pop .25s ease-out}
+.bubble i{position:absolute;bottom:-13px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:14px solid #fffdf3}
+@keyframes pop{from{transform:scale(.4) rotate(-6deg);opacity:0}}
+.sfx{position:absolute;z-index:3000;font-size:44px;font-weight:900;color:#fff;background:#e5483b;padding:6px 22px;border-radius:10px;box-shadow:4px 5px 0 rgba(0,0,0,.3);transform:rotate(-7deg);animation:pop .3s ease-out}
+.card{position:absolute;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .6s}
+.card.show{opacity:1}
+#title{background:#c9a06a}
+#end{background:rgba(50,35,20,.55)}
+#end.show{pointer-events:auto}
+.paper-card{background:#fffdf3;padding:26px 54px 30px;border-radius:8px 20px 10px 18px;text-align:center;box-shadow:6px 8px 0 rgba(0,0,0,.3);transform:rotate(-2deg)}
+.paper-card h1{margin:0;font-size:64px;line-height:1.05}
+.paper-card p{margin:8px 0 0;font-size:24px}
+#replay{font:inherit;font-size:28px;color:#3a2a1a;margin-top:18px;padding:10px 30px;background:#ffd23f;border:none;border-radius:8px;box-shadow:3px 4px 0 rgba(0,0,0,.3);cursor:pointer;transform:rotate(1.5deg)}
+#replay:hover{background:#ffe066}
+#replay:focus-visible{outline:4px solid #3a7bd5;outline-offset:3px}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+<div id="bg"></div><div id="cast"></div>
+<div id="title" class="card show"><div class="paper-card"><h1>The Zoo Chase</h1><p>a paper-cut story</p></div></div>
+<div id="end" class="card"><div class="paper-card"><h1>The End</h1><button id="replay">&#8635; Replay</button></div></div>
+</div></div>
+<script>
+const W=960,H=540,$=s=>document.querySelector(s);
+const stage=$('#stage'),cast=$('#cast');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function fit(){$('#wrap').style.transform='scale('+Math.min(innerWidth/W,innerHeight/H)+')'}
+addEventListener('resize',fit);fit();
+
+function star(cx,cy,r1,r2,n){const p=[];for(let i=0;i<n*2;i++){const a=Math.PI*i/n,r=i%2?r1:r2;p.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1))}return p.join(' ')}
+
+/* ---------- paper background ---------- */
+(function(){
+let posts='';for(let x=4;x<W;x+=48)posts+=`<rect x="${x}" y="296" width="20" height="84" rx="5" fill="#b5803f"/>`;
+let tufts='';for(let x=10;x<W;x+=70)tufts+=`<path d="M${x} 540 L${x+8} 500 L${x+16} 540 L${x+24} 506 L${x+32} 540Z" fill="#4f9a52"/>`;
+$('#bg').innerHTML=`<svg viewBox="0 0 960 540" width="960" height="540">
+<defs><filter id="sh" x="-5%" y="-5%" width="110%" height="115%"><feDropShadow dx="0" dy="4" stdDeviation="0" flood-color="#000" flood-opacity=".28"/></filter></defs>
+<rect width="960" height="540" fill="#a6dcee"/>
+<g filter="url(#sh)"><polygon points="${star(830,95,56,72,14)}" fill="#ffc933"/><circle cx="830" cy="95" r="46" fill="#ffe066"/></g>
+<g class="c1" filter="url(#sh)" fill="#fffaf0"><circle cx="150" cy="90" r="26"/><circle cx="185" cy="78" r="32"/><circle cx="225" cy="92" r="24"/><rect x="130" y="90" width="115" height="26" rx="12"/></g>
+<g class="c2" filter="url(#sh)" fill="#fffaf0"><circle cx="480" cy="140" r="22"/><circle cx="512" cy="128" r="28"/><circle cx="548" cy="142" r="20"/><rect x="460" y="140" width="106" height="22" rx="10"/></g>
+<path filter="url(#sh)" d="M0 290 Q130 200 300 270 T620 250 T960 270 V540 H0Z" fill="#8fd18a"/>
+<g filter="url(#sh)"><rect x="372" y="210" width="18" height="100" fill="#8b5a2b"/><circle cx="381" cy="190" r="48" fill="#3f9b4a"/><circle cx="350" cy="215" r="30" fill="#4fb05a"/>
+<rect x="632" y="215" width="18" height="100" fill="#8b5a2b"/><circle cx="641" cy="195" r="44" fill="#3f9b4a"/><circle cx="668" cy="222" r="28" fill="#4fb05a"/></g>
+<path filter="url(#sh)" d="M0 330 Q200 270 420 320 T960 310 V540 H0Z" fill="#6dbb67"/>
+<g filter="url(#sh)"><rect x="0" y="322" width="960" height="10" fill="#c8914c"/><rect x="0" y="352" width="960" height="10" fill="#c8914c"/>${posts}</g>
+<g filter="url(#sh)"><rect x="790" y="210" width="12" height="110" fill="#8b5a2b"/><rect x="890" y="210" width="12" height="110" fill="#8b5a2b"/>
+<rect x="770" y="165" width="150" height="58" rx="8" fill="#f2b84b"/><text x="845" y="208" text-anchor="middle" font-size="42" font-weight="900" fill="#6b3f1a" font-family="Chalkboard SE,Marker Felt,Comic Sans MS,cursive">ZOO</text></g>
+<path filter="url(#sh)" d="M0 395 Q160 375 330 395 T700 392 T960 388 V540 H0Z" fill="#f0d49b"/>
+<g filter="url(#sh)"><path d="M0 505 Q120 485 240 508 T480 503 T720 508 T960 498 V540 H0Z" fill="#5aa85a"/>${tufts}</g>
+</svg>`;
+})();
+
+/* ---------- characters ---------- */
+const smile='M23 31 Q30 38 37 31',frown='M23 36 Q30 28 37 36';
+const hairTop=c=>`<path d="M13 24 Q12 5 30 6 Q48 5 47 24 Q38 13 30 15 Q22 13 13 24Z" fill="${c}"/>`;
+const tops={
+ kid:hairTop('#6b3a1e'),
+ keeper:'<ellipse cx="30" cy="11" rx="25" ry="5" fill="#c9a24a"/><path d="M16 11 Q18 -6 30 -5 Q42 -6 44 11Z" fill="#d8b45a"/>',
+ john:'<path d="M12 22 L10 4 L20 12 L26 -2 L32 11 L40 -1 L44 12 L52 6 L48 24 Q30 10 12 22Z" fill="#e8742a"/>',
+ bad:'<path d="M12 20 Q14 2 30 2 Q46 2 48 20Z" fill="#222"/><rect x="11" y="17" width="38" height="7" rx="3" fill="#666"/><path class="ln" d="M18 18 L28 22 M42 18 L32 22" style="stroke:#222"/>'
+};
+function P(o,sc){return `<svg class="paper" viewBox="0 -8 60 128" width="${60*sc}" height="${128*sc}">
+<rect x="18" y="78" width="10" height="38" rx="3" fill="${o.pants}"/><rect x="32" y="78" width="10" height="38" rx="3" fill="${o.pants}"/>
+<rect x="4" y="44" width="10" height="34" rx="5" fill="${o.shirt}" transform="rotate(8 9 44)"/><rect x="46" y="44" width="10" height="34" rx="5" fill="${o.shirt}" transform="rotate(-8 51 44)"/>
+<rect x="14" y="40" width="32" height="46" rx="8" fill="${o.shirt}"/>
+<circle cx="30" cy="24" r="17" fill="${o.skin}"/>${o.top}
+<circle class="eye" cx="24" cy="24" r="2.3" fill="#222"/><circle class="eye" cx="36" cy="24" r="2.3" fill="#222"/>
+<path class="ln" d="${o.mouth||smile}"/></svg>`}
+const TIGER=`<svg class="paper" viewBox="0 0 170 100" width="170" height="100">
+<path d="M24 44 Q-4 40 6 12" fill="none" style="stroke:#f4a13a;stroke-width:10;stroke-linecap:round"/>
+<rect x="34" y="60" width="14" height="36" rx="5" fill="#f4a13a"/><rect x="54" y="60" width="14" height="36" rx="5" fill="#f4a13a"/>
+<rect x="100" y="60" width="14" height="36" rx="5" fill="#f4a13a"/><rect x="120" y="60" width="14" height="36" rx="5" fill="#f4a13a"/>
+<rect x="22" y="28" width="116" height="48" rx="22" fill="#f4a13a"/>
+<path class="ns" d="M50 28 L56 50 L46 52Z M72 28 L78 54 L66 54Z M96 28 L102 52 L90 54Z" fill="#6b3a1e"/>
+<circle cx="120" cy="24" r="8" fill="#f4a13a"/><circle cx="156" cy="24" r="8" fill="#f4a13a"/>
+<circle cx="138" cy="44" r="24" fill="#f4a13a"/>
+<path class="ns" d="M132 21 L136 31 L128 29Z M146 21 L150 31 L142 29Z" fill="#6b3a1e"/>
+<ellipse class="ns" cx="142" cy="54" rx="14" ry="10" fill="#fff6e5"/><path class="ns" d="M138 48 L148 48 L143 54Z" fill="#e85c6a"/>
+<circle class="eye" cx="131" cy="40" r="3" fill="#222"/><circle class="eye" cx="150" cy="40" r="3" fill="#222"/>
+<path class="ln" d="M143 54 Q143 60 137 60 M143 54 Q143 60 149 60"/></svg>`;
+
+const OPT={
+ kid:{skin:'#f3c9a0',shirt:'#ffd23f',pants:'#3a7bd5',top:tops.kid,sc:.78},
+ keeper:{skin:'#e9b98d',shirt:'#3f9b4a',pants:'#7a5a3a',top:tops.keeper,sc:.95},
+ john:{skin:'#f6d2ae',shirt:'#e5483b',pants:'#2f4b8a',top:tops.john,sc:.85},
+ bad1:{skin:'#d9a97a',shirt:'#444',pants:'#222',top:tops.bad,mouth:frown,sc:.9},
+ bad2:{skin:'#c99468',shirt:'#6a2c91',pants:'#222',top:tops.bad,mouth:frown,sc:.9}
+};
+let runId=0;
+function actor(html,w,h,x,b){
+ const el=document.createElement('div');el.className='actor';
+ el.innerHTML='<div class="flip"><div class="bob">'+html+'</div></div>';
+ Object.assign(el.style,{width:w+'px',height:h+'px',left:x+'px',bottom:b+'px',zIndex:1000-b,transformOrigin:'50% 100%'});
+ cast.appendChild(el);
+ const a={el,w,h,x,b,flip:el.firstChild,bob:el.firstChild.firstChild};
+ a.bob.style.animationDelay=(-Math.random()*.7)+'s';
+ return a;
+}
+function person(o,x,b,sc){sc=sc||o.sc;return actor(P(o,sc),60*sc,128*sc,x,b)}
+
+async function move(a,x,sec,b){
+ if(b===undefined)b=a.b;
+ if(x!==a.x)a.flip.style.transform='scaleX('+(x<a.x?-1:1)+')';
+ a.x=x;a.b=b;void a.el.offsetWidth;
+ a.el.style.transition='left '+sec+'s linear, bottom '+sec+'s linear';
+ a.el.style.left=x+'px';a.el.style.bottom=b+'px';
+ if(!a.fixZ)a.el.style.zIndex=1000-b;
+ a.bob.classList.add('walk');await sleep(sec*1000);a.bob.classList.remove('walk');
+}
+async function jump(a,x,b,sec){
+ a.bob.animate([{transform:'translateY(0)'},{transform:'translateY(-120px) rotate(-8deg)',offset:.5},{transform:'translateY(0)'}],{duration:sec*1000,easing:'ease-out'});
+ await move(a,x,sec,b);
+}
+function pop(a){a.el.animate([{transform:'scale(0) rotate(-20deg)'},{transform:'scale(1.15)',offset:.7},{transform:'scale(1)'}],{duration:450,easing:'ease-out'})}
+async function say(a,text,hold){
+ const b=document.createElement('div');b.className='bubble';b.innerHTML=text+'<i></i>';stage.appendChild(b);
+ const cx=a.x+a.w/2,bw=b.offsetWidth,l=Math.max(10,Math.min(W-bw-10,cx-bw/2));
+ b.style.left=l+'px';b.style.bottom=(a.b+a.h+16)+'px';
+ b.lastChild.style.left=Math.max(12,Math.min(bw-32,cx-l-10))+'px';
+ a.bob.classList.add('talk');
+ await sleep(hold||1500+text.length*55);
+ a.bob.classList.remove('talk');b.remove();await sleep(250);
+}
+function sfx(text,x,y){const d=document.createElement('div');d.className='sfx';d.textContent=text;d.style.left=x+'px';d.style.bottom=y+'px';stage.appendChild(d);setTimeout(()=>d.remove(),1400)}
+function clear(){cast.innerHTML='';stage.querySelectorAll('.bubble,.sfx').forEach(e=>e.remove())}
+
+/* ---------- the story ---------- */
+async function run(){
+ const id=++runId;
+ clear();
+ $('#end').classList.remove('show');$('#title').classList.add('show');
+ const skins=['#f3c9a0','#d9a97a','#a8754f','#f6d2ae'],shirts=['#e5483b','#3a7bd5','#9b59b6','#16a085','#f39c12','#e84393','#2c3e50'],pants=['#2f4b8a','#444','#7a5a3a','#5b3a8a'],hairs=['#222','#6b3a1e','#c98b3a','#8a8a8a','#b5432a'];
+ const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+ const tiger=actor(TIGER,170,100,800,100);tiger.flip.style.transform='scaleX(-1)';tiger.x=800;
+ const keeper=person(OPT.keeper,430,110);
+ const kid=person(OPT.kid,-90,110);
+ const bad1=person(OPT.bad1,-300,110),bad2=person(OPT.bad2,-200,110);
+ const crowd=[];
+ for(let i=0;i<10;i++){
+  const sc=.78;
+  crowd.push(person({skin:pick(skins),shirt:pick(shirts),pants:pick(pants),top:hairTop(pick(hairs))},1050+i*10,i%2?60:90,sc));
+ }
+ await sleep(2600);if(id!==runId)return;
+ $('#title').classList.remove('show');await sleep(800);
+
+ // Little Kid runs in, chased by the bad guys
+ await Promise.all([move(kid,330,2.4),move(bad1,40,2.8),move(bad2,125,2.8)]);
+ await say(kid,'ZooKeeper, can you please help me by jumping onto the tiger to chase and scare the bad guys?');
+ await say(keeper,'No can do, sorry.',1400);
+
+ // the 10 people arrive
+ await Promise.all(crowd.map((c,i)=>move(c,600+(i%5)*30+(i%2?14:0),2.2)));
+ await say(kid,'10 people, can you attack the ZooKeeper to jump onto the tiger to chase and scare the bad guys?');
+ await say(crowd[4],'. . .',1500);
+
+ // John
+ const john=person(OPT.john,220,110);pop(john);await sleep(600);
+ await say(kid,'John, can you say mean stuff to the 10 people so they will attack the ZooKeeper to jump onto the tiger to chase and scare the bad guys away?');
+ await say(john,'Yes, only if you buy me ice cream.');
+ await say(kid,'Yes, I will buy you ice cream.');
+ await move(john,515,1.6);
+ await say(john,'Hey punks, I\'m gonna get ya! If you don\'t attack the ZooKeeper...');
+
+ // the attack
+ john.bob.classList.remove('talk');
+ await Promise.all([move(john,235,1.4),...crowd.map((c,i)=>move(c,350+i*16,1.2))]);
+ [...crowd,keeper].forEach(c=>c.bob.classList.add('shake'));
+ await sleep(1300);
+ [...crowd,keeper].forEach(c=>c.bob.classList.remove('shake'));
+
+ // keeper jumps on the tiger
+ keeper.fixZ=true;keeper.el.style.zIndex=1500;
+ await jump(keeper,tiger.x+35,tiger.b+52,.9);
+ sfx('ROAR!',tiger.x-30,230);
+ await sleep(600);
+
+ // chase!
+ const ride=Promise.all([move(tiger,110,3),move(keeper,145,3,tiger.b+52)]);
+ await sleep(400);
+ const flee=Promise.all([move(bad1,-220,2),move(bad2,-220,2.2)]);
+ await Promise.all([ride,flee]);
+ await sleep(500);
+
+ // thank you
+ await move(kid,300,.8);
+ await say(kid,'Thank you, John.',1300);
+ await say(john,'That\'s OK, so now where\'s my ice cream?');
+ await sleep(900);
+
+ $('#end').classList.add('show');
+}
+$('#replay').addEventListener('click',()=>run());
+run();
+</script>
+</body>
+</html>
