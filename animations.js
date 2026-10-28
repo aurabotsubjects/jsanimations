@@ -66,6 +66,16 @@ window.COLLECTIONS = [
       { file: "translation.html", title: "Translation", tag: "Maths", thumb: "thumbs/translation.jpg" },
       { file: "blue-moon-black-moon.html", title: "Blue Moon & Black Moon", tag: "Science", thumb: "thumbs/blue-moon-black-moon.jpg" },
       { file: "korea-1950-watercolor.html", title: "Korea, 1950", tag: "History", thumb: "thumbs/korea-1950-watercolor.jpg" },
+    { file: "skybound-w1-the-logbook-opens.html", title: "The Logbook Opens", tag: "Skybound · Week 1", series: "Skybound", thumb: "thumbs/skybound-w1-the-logbook-opens.jpg" },
+    { file: "skybound-w2-the-stone-city.html", title: "The Stone City", tag: "Skybound · Week 2", series: "Skybound", thumb: "thumbs/skybound-w2-the-stone-city.jpg" },
+    { file: "skybound-w3-gold-and-ivory-kingdom.html", title: "The Gold and Ivory Kingdom", tag: "Skybound · Week 3", series: "Skybound", thumb: "thumbs/skybound-w3-gold-and-ivory-kingdom.jpg" },
+    { file: "ndebele-kingdom-mfecane.html", title: "A Kingdom on the Move", tag: "Skybound · Week 4", series: "Skybound", thumb: "thumbs/ndebele-kingdom-mfecane.jpg" },
+    { file: "skybound-w5-the-lost-city-trial.html", title: "The Lost City Trial", tag: "Skybound · Week 5", series: "Skybound", thumb: "thumbs/skybound-w5-the-lost-city-trial.jpg" },
+    { file: "skybound-w6-new-arrivals-new-boundaries.html", title: "New Arrivals, New Boundaries", tag: "Skybound · Week 6", series: "Skybound", thumb: "thumbs/skybound-w6-new-arrivals-new-boundaries.jpg" },
+    { file: "skybound-w7-i-am-because-we-are.html", title: "I Am, Because We Are", tag: "Skybound · Week 7", series: "Skybound", thumb: "thumbs/skybound-w7-i-am-because-we-are.jpg" },
+    { file: "skybound-w8-the-day-the-flag-changed.html", title: "The Day the Flag Changed", tag: "Skybound · Week 8", series: "Skybound", thumb: "thumbs/skybound-w8-the-day-the-flag-changed.jpg" },
+    { file: "skybound-w9-two-worlds-one-life.html", title: "Two Worlds, One Life", tag: "Skybound · Week 9", series: "Skybound", thumb: "thumbs/skybound-w9-two-worlds-one-life.jpg" },
+    { file: "skybound-w10-the-whole-route.html", title: "The Whole Route, In Order", tag: "Skybound · Week 10", series: "Skybound", thumb: "thumbs/skybound-w10-the-whole-route.jpg" },
     ]
   },
   {

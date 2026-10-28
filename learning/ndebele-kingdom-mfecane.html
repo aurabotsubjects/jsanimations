@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A Kingdom on the Move</title>
+<style>
+:root{--paper:#fbf3e2;--paper2:#f3e6cb;--ink:#3b2a1c;--soft:#7a6350;--red:#b8434f;--gold:#e9b44c;--green:#4f8a4b;
+  --serif:Georgia,"Iowan Old Style","Palatino Linotype",serif;--sans:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#231b13;overflow:hidden;-webkit-font-smoothing:antialiased}
+body{display:grid;place-items:center;font-family:var(--sans);color:var(--ink)}
+#stage{position:relative;width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;container-type:size;overflow:hidden;background:#f6e3c0;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ui{position:absolute;inset:0;pointer-events:none}
+.ui>*{pointer-events:auto}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:.3cqw solid var(--gold);outline-offset:.3cqw}
+
+.paper{background:var(--paper);background-image:radial-gradient(rgba(120,80,30,.07) 1px,transparent 1.2px),radial-gradient(rgba(255,255,255,.6) 1px,transparent 1.2px);
+  background-size:.55cqw .55cqw,.8cqw .8cqw;background-position:0 0,.3cqw .3cqw;
+  box-shadow:.25cqw .45cqw 0 rgba(60,35,15,.25),0 .2cqw 1.2cqw rgba(60,35,15,.25)}
+.tape::before{content:"";position:absolute;top:-1.1cqw;left:50%;width:9cqw;height:2.2cqw;transform:translateX(-50%) rotate(-3deg);background:rgba(233,180,76,.55);box-shadow:0 .1cqw .3cqw rgba(0,0,0,.12)}
+
+/* caption strip */
+#cap{position:absolute;left:3cqw;right:3cqw;bottom:2.4cqw;min-height:9cqw;border-radius:.6cqw 1.2cqw .8cqw 1cqw;padding:1.4cqw 2cqw 1.4cqw 2.4cqw;
+  display:flex;align-items:center;gap:2cqw;transform:rotate(-.25deg);transition:opacity .4s,transform .4s}
+#cap.hide{opacity:0;transform:translateY(3cqw);pointer-events:none}
+#captext{flex:1;font-size:2.15cqw;line-height:1.35}
+#captext b{color:var(--red)}
+#captext .q{font-family:var(--serif);font-style:italic}
+.nav{display:flex;align-items:center;gap:1cqw;flex:none}
+.nb{height:4.4cqw;min-width:4.4cqw;padding:0 1.6cqw;border:0;border-radius:.8cqw 1.2cqw .9cqw 1.1cqw;font-weight:700;font-size:1.7cqw;
+  background:var(--ink);color:var(--paper);box-shadow:.2cqw .35cqw 0 rgba(0,0,0,.25);transition:transform .15s,background .2s,opacity .2s}
+.nb:hover{transform:translateY(-.15cqw)}
+.nb.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 .2cqw rgba(59,42,28,.35);padding:0}
+.nb:disabled{opacity:.35;cursor:default;transform:none}
+#next.ready{background:var(--red);animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(.35cqw)}}
+#dots{display:flex;gap:.5cqw}
+#dots i{width:.8cqw;height:.8cqw;border-radius:50%;background:rgba(59,42,28,.22)}
+#dots i.on{background:var(--red)}
+
+/* hint tag */
+#hint{position:absolute;left:50%;top:2.2cqw;transform:translateX(-50%);padding:.9cqw 1.8cqw;border-radius:5cqw;background:var(--ink);color:var(--paper);font-weight:700;font-size:1.65cqw;
+  display:flex;align-items:center;gap:.8cqw;white-space:nowrap;box-shadow:0 .4cqw 1cqw rgba(0,0,0,.3);transition:opacity .35s,transform .35s;pointer-events:none}
+#hint.hide{opacity:0;transform:translate(-50%,-1.5cqw)}
+#hint span.dot{width:1.1cqw;height:1.1cqw;border-radius:50%;background:var(--gold);animation:ping 1.2s ease-out infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(233,180,76,.8)}100%{box-shadow:0 0 0 1.2cqw rgba(233,180,76,0)}}
+
+/* verse card */
+#verse{position:absolute;left:50%;top:7cqw;width:min(64cqw,100%);transform:translateX(-50%) rotate(.6deg);padding:2cqw 2.6cqw 1.6cqw;border-radius:.4cqw;text-align:center;transition:opacity .45s,transform .45s}
+#verse.hide{opacity:0;transform:translateX(-50%) translateY(-2cqw) rotate(-2deg);pointer-events:none}
+#verse .vt{font-family:var(--serif);font-style:italic;font-size:2.35cqw;line-height:1.4}
+#verse .vr{margin-top:.8cqw;font-size:1.3cqw;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+
+/* pop card (details) */
+#pop{position:absolute;left:50%;top:50%;width:46cqw;transform:translate(-50%,-56%) rotate(-.8deg);padding:2.4cqw 2.8cqw 2.2cqw;border-radius:.6cqw;text-align:center;
+  transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1)}
+#pop.hide{opacity:0;transform:translate(-50%,-50%) scale(.85) rotate(4deg);pointer-events:none}
+#pop .ic{font-size:4.6cqw;line-height:1;margin-bottom:.8cqw}
+#pop .k{font-size:1.25cqw;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#pop h3{margin:.6cqw 0 1cqw;font-family:var(--serif);font-style:italic;font-weight:600;font-size:2.4cqw;line-height:1.3}
+#pop p{margin:0;font-size:1.85cqw;line-height:1.45;color:var(--soft)}
+#pop .close{position:absolute;right:1cqw;top:.8cqw;border:0;background:none;font-size:2.4cqw;color:var(--soft);padding:.3cqw .8cqw}
+
+/* side panel */
+#side{position:absolute;right:2.4cqw;top:6cqw;width:29cqw;padding:2cqw 2.2cqw 1.8cqw;border-radius:.6cqw;transform:rotate(.6deg);transition:opacity .35s,transform .45s cubic-bezier(.3,1.4,.5,1)}
+#side.hide{opacity:0;transform:translateX(3cqw) rotate(3deg);pointer-events:none}
+#side .ic{font-size:3.6cqw;line-height:1}
+#side .k{margin-top:.6cqw;font-size:1.15cqw;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#side h3{margin:.5cqw 0 .7cqw;font-family:var(--serif);font-size:2.3cqw;line-height:1.15}
+#side p{margin:0;font-size:1.6cqw;line-height:1.45;color:var(--soft)}
+.bub{position:absolute;transform:translate(-50%,-100%);max-width:34cqw;padding:1.1cqw 1.5cqw;border-radius:1.2cqw;background:#fff;font-size:1.7cqw;line-height:1.35;box-shadow:.25cqw .4cqw 0 rgba(60,35,15,.25);pointer-events:none;animation:bubIn .5s cubic-bezier(.3,1.5,.5,1)}
+.bub::after{content:"";position:absolute;left:50%;bottom:-1cqw;border:1cqw solid transparent;border-top-color:#fff;border-bottom:0;transform:translateX(-50%)}
+.bub b{display:block;font-size:1.15cqw;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+@keyframes bubIn{from{opacity:0;transform:translate(-50%,-80%) scale(.8)}to{opacity:1;transform:translate(-50%,-100%)}}
+/* title + end cards */
+.card{position:absolute;left:50%;top:47%;width:58cqw;transform:translate(-50%,-50%) rotate(-.6deg);padding:3.4cqw 4cqw 3cqw;border-radius:.6cqw;text-align:center;transition:opacity .5s,transform .6s}
+.card.hide{opacity:0;transform:translate(-50%,-44%) rotate(2deg);pointer-events:none}
+.card .kick{font-size:1.35cqw;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--red)}
+.card h1{margin:1cqw 0 .6cqw;font-family:var(--serif);font-size:5.4cqw;line-height:1.02;letter-spacing:-.01em}
+.card h2{margin:1cqw 0 1cqw;font-family:var(--serif);font-size:3.6cqw;line-height:1.1}
+.card .ref{font-family:var(--serif);font-style:italic;font-size:2cqw;color:var(--soft)}
+.card p{font-size:1.9cqw;line-height:1.45;margin:1.2cqw auto 0;max-width:46cqw}
+.card .think{margin-top:1.8cqw;padding:1.2cqw 1.6cqw;border-radius:.8cqw;background:rgba(233,180,76,.22);font-size:1.75cqw;line-height:1.4}
+.card .think b{display:block;font-size:1.2cqw;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin-bottom:.3cqw}
+.big{margin-top:2.4cqw;height:5.6cqw;padding:0 3.4cqw;border:0;border-radius:1cqw 1.6cqw 1.2cqw 1.4cqw;background:var(--red);color:#fff;font-weight:800;font-size:2.1cqw;
+  box-shadow:.3cqw .5cqw 0 rgba(0,0,0,.25);transition:transform .15s}
+.big:hover{transform:translateY(-.2cqw) rotate(-1deg)}
+.big.alt{background:var(--ink);margin-left:1cqw}
+.series{margin-top:1.6cqw;font-size:1.3cqw;color:var(--soft)}
+
+/* hotspots */
+#hot{position:absolute;inset:0;pointer-events:none}
+.hs{position:absolute;pointer-events:auto;border:0;background:transparent;border-radius:50%;padding:0;transform:translate(-50%,-50%)}
+.hs.pulse::after{content:"";position:absolute;inset:-12%;border-radius:inherit;border:.3cqw dashed rgba(255,226,140,.95);animation:spin 1.4s ease-in-out infinite,glow 1.4s ease-in-out infinite}
+@keyframes spin{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes glow{0%,100%{opacity:.45}50%{opacity:1}}
+.hs.done::after{display:none}
+.chip{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);border:0;padding:1cqw 1.8cqw;border-radius:.8cqw 1.3cqw 1cqw 1.2cqw;font-weight:800;font-size:1.75cqw;
+  background:var(--paper);color:var(--ink);box-shadow:.25cqw .45cqw 0 rgba(60,35,15,.3);transition:transform .2s,background .2s}
+.chip:hover{transform:translate(-50%,-50%) rotate(-2deg) scale(1.04)}
+.chip.red{background:var(--red);color:#fff}
+.chip.gold{background:var(--gold)}
+.chip.hide{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" aria-label="A Kingdom on the Move animation"></canvas>
+  <div class="ui">
+    <div id="hot"></div>
+    <div id="verse" class="paper tape hide"><div class="vt"></div><div class="vr"></div></div>
+    <div id="hint" class="hide"><span class="dot"></span><span id="hinttext"></span></div>
+    <div id="side" class="paper hide"><div class="ic"></div><div class="k"></div><h3></h3><p></p></div>
+    <div id="pop" class="paper hide" role="dialog"><button class="close" aria-label="Close">×</button><div class="ic"></div><div class="k"></div><h3></h3><p></p></div>
+    <div id="cap" class="paper hide"><div id="captext"></div>
+      <div class="nav"><button class="nb ghost" id="prev" aria-label="Back">◀</button><span id="dots"></span><button class="nb" id="next">Next ▶</button></div></div>
+    <div id="titlecard" class="card paper tape">
+      <div class="kick">Skybound · Week 4 · Flight Log 16 · History</div>
+      <h1>A Kingdom on the Move</h1>
+      <div class="ref">The Mfecane & the Ndebele Kingdom · early 1800s</div>
+      <p>Drought, conflict and a journey of hundreds of kilometres. Discover how the Ndebele Kingdom was born out of a time of great upheaval.</p>
+      <button class="big" id="start">▶ Start</button>
+      <div class="series">Tap, click and explore as the story goes.</div>
+    </div>
+    <div id="endcard" class="card paper tape hide">
+      <div class="kick">The big idea</div>
+      <h2>Drought and conflict pushed whole communities to move. Out of that upheaval, new nations like the Ndebele Kingdom were built.</h2>
+      <div class="think"><b>Think about it</b>If your community had to leave and rebuild somewhere new, what three things would you most want to carry with you, and why?</div>
+      <button class="big" id="again">↻ Watch again</button>
+      <div class="series">A lead-in for Week 4 · Skybound: The Baobab Route</div>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+/* ================= PAPER-CUT KIT ================= */
+const W=960,H=540,cv=document.getElementById('cv'),g=cv.getContext('2d');
+const $=s=>document.querySelector(s);
+const cl=(v,a=0,b=1)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
+const ease=q=>{q=cl(q);return q*q*(3-2*q)};
+const eob=q=>{q=cl(q);const c=1.70158;return 1+(c+1)*Math.pow(q-1,3)+c*Math.pow(q-1,2)};
+const hash=(a,b)=>{const v=Math.sin(a*127.1+b*311.7)*43758.5453;return v-Math.floor(v)};
+let T=0,F=0,ST=0; // global time, stop-motion frame, time in current step
+function fit(){const r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);cv.width=Math.max(1,Math.round(r.width*d));cv.height=Math.max(1,Math.round(r.height*d))}
+addEventListener('resize',fit);fit();
+// paper grain
+const pc=document.createElement('canvas');pc.width=pc.height=140;{const p=pc.getContext('2d');
+ for(let i=0;i<1100;i++){p.fillStyle=Math.random()<.5?'rgba(255,255,255,.16)':'rgba(90,60,30,.10)';p.fillRect(Math.random()*140,Math.random()*140,1+Math.random()*1.6,1+Math.random()*1.6)}}
+const PAT=g.createPattern(pc,'repeat');
+// cut-paper polygon (edges wobble a little, like stop-motion)
+function poly(pts,col,o={}){
+  const j=o.j??1.3;g.beginPath();
+  pts.forEach(([x,y],i)=>{const a=x+(hash(x*.37+F*1.7,y)-.5)*j,b=y+(hash(y*.37,x+F*1.3)-.5)*j;i?g.lineTo(a,b):g.moveTo(a,b)});
+  g.closePath();
+  if(o.shadow!==false){g.save();g.shadowColor=o.sc||'rgba(45,28,12,.30)';g.shadowBlur=o.sb??5;g.shadowOffsetX=o.sx??2;g.shadowOffsetY=o.sy??3;g.fillStyle=col;g.fill();g.restore()}
+  else{g.fillStyle=col;g.fill()}
+  if(o.grain!==false){g.save();g.globalAlpha=.55;g.fillStyle=PAT;g.fill();g.restore()}
+}
+function oval(cx,cy,rx,ry,col,o={}){
+  const a0=o.a0??0,a1=o.a1??Math.PI*2,n=o.n||Math.max(12,Math.min(44,Math.round((rx+ry)/2.6))),p=[];
+  for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;p.push([cx+Math.cos(a)*rx,cy+Math.sin(a)*ry])}
+  poly(p,col,o);
+}
+function rect(x,y,w,h,col,o={}){const p=[],n=Math.max(1,Math.round(w/40));for(let i=0;i<=n;i++)p.push([x+w*i/n,y]);for(let i=0;i<=n;i++)p.push([x+w-w*i/n,y+h]);poly([...p.slice(0,n+1),[x+w,y+h*.5],...p.slice(n+1),[x,y+h*.5]],col,o)}
+function glow(x,y,r,col,a=1){const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(255,255,255,0)');g.save();g.globalAlpha=a;g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);g.restore()}
+function sky(top,bot,y1=H){const gr=g.createLinearGradient(0,0,0,y1);gr.addColorStop(0,top);gr.addColorStop(1,bot);g.fillStyle=gr;g.fillRect(0,0,W,H);g.save();g.globalAlpha=.35;g.fillStyle=PAT;g.fillRect(0,0,W,H);g.restore()}
+function sun(x,y,r,col='#f6c445'){glow(x,y,r*3,'rgba(255,230,150,.55)');
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2+T*.08;g.save();g.translate(x,y);g.rotate(a);poly([[r*1.12,-r*.16],[r*1.62,0],[r*1.12,r*.16]],'#f3a93b',{shadow:false});g.restore()}
+  oval(x,y,r,r,col)}
+function cloud(x,y,s=1,col='#fffaf0'){oval(x,y,46*s,20*s,col,{sb:4});oval(x-24*s,y+2*s,26*s,16*s,col,{shadow:false});oval(x+6*s,y-12*s,30*s,22*s,col,{shadow:false});oval(x+30*s,y+2*s,24*s,15*s,col,{shadow:false})}
+function hillPts(y0,amp,seed,len=W+40){const p=[[-20,H+10]];for(let x=-20;x<=len;x+=40)p.push([x,y0-amp*(.5+.5*Math.sin(x*.006+seed))-amp*.35*Math.sin(x*.017+seed*2)]);p.push([len,H+10]);return p}
+function hill(y0,amp,seed,col,o){poly(hillPts(y0,amp,seed),col,o)}
+function tuft(x,y,s=1,col='#4f8a4b'){poly([[x-6*s,y],[x-3*s,y-12*s],[x,y-3*s],[x+2*s,y-15*s],[x+4*s,y-3*s],[x+8*s,y-10*s],[x+7*s,y]],col,{shadow:false})}
+function flower(x,y,s=1,col='#e86f8a',open=1){g.save();g.strokeStyle='#4f8a4b';g.lineWidth=3*s;g.beginPath();g.moveTo(x,y);g.lineTo(x,y-26*s*Math.max(.4,open));g.stroke();g.restore();
+  const yy=y-26*s*Math.max(.4,open);if(open<.15){oval(x,yy,4*s,6*s,'#6ea85d',{shadow:false});return}
+  const r=9*s*open;for(let i=0;i<5;i++){const a=i/5*Math.PI*2+.3;oval(x+Math.cos(a)*r*.9,yy+Math.sin(a)*r*.9,r*.7,r*.7,col,{shadow:false,n:10})}oval(x,yy,r*.5,r*.5,'#f6c445',{shadow:false,n:10})}
+function bird(x,y,s=1,flap=0,col='#4a5f8a'){const w=Math.sin(flap)*10*s;oval(x,y,12*s,7*s,col,{n:14,sb:3});poly([[x-2*s,y-2*s],[x-14*s,y-8*s-w],[x+4*s,y-3*s]],col,{shadow:false});poly([[x+2*s,y-2*s],[x+14*s,y-10*s-w],[x+8*s,y-2*s]],col,{shadow:false});
+  oval(x+11*s,y-4*s,5*s,5*s,col,{n:10,shadow:false});poly([[x+15*s,y-5*s],[x+20*s,y-3*s],[x+15*s,y-2*s]],'#f0a63b',{shadow:false});g.fillStyle='#fff';g.beginPath();g.arc(x+12*s,y-5*s,1.4*s,0,7);g.fill()}
+function wtxt(s,x,y,maxW,size=20,col='#3b2a1c',font='700 ',lh=1.25){g.save();g.font=font+size+'px Georgia,serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle=col;const L=[];let line='';for(const w of s.split(' ')){const t=line?line+' '+w:w;if(g.measureText(t).width>maxW&&line){L.push(line);line=w}else line=t}L.push(line);L.forEach((l,i)=>g.fillText(l,x,y+(i-(L.length-1)/2)*size*lh));g.restore()}
+function txt(s,x,y,size=20,col='#3b2a1c',font='700 ',align='center'){g.save();g.font=font+size+'px Georgia,serif';g.textAlign=align;g.textBaseline='middle';g.fillStyle=col;g.fillText(s,x,y);g.restore()}
+/* people — y is the ground line under their feet */
+const SKIN=['#d9a57c','#c98f62','#b87a4b','#e3b48d','#a86d45'],HAIR=['#3a2618','#5a3a22','#2a1d14','#6b4a2e','#8a8a88'];
+const ROBE=['#c96f4a','#6f8fb4','#8aa56a','#d6a64b','#9a6a9e','#b5523f','#5f8d8a','#c78f6b','#7d6aa8','#e0c48a'];
+function person(x,y,s,o={}){
+  const sit=!!o.sit,robe=o.robe||'#c96f4a',skin=o.skin||'#d9a57c',top=sit?-48:-64,hy=top-15,flip=o.flip?-1:1;
+  g.save();g.translate(x,y+(o.bob||0));g.scale(s*flip,s);if(o.rot)g.rotate(o.rot);
+  if(sit){poly([[-12,top],[12,top],[20,-14],[30,-10],[30,0],[-18,0],[-20,-10]],robe)}
+  else{oval(-6,-1,5,3,'#5b3c24',{shadow:false,n:8});oval(7,-1,5,3,'#5b3c24',{shadow:false,n:8});poly([[-12,top],[12,top],[19,-3],[-19,-3]],robe)}
+  if(o.sash)poly([[-13,top+22],[13,top+22],[14,top+28],[-14,top+28]],o.sash,{shadow:false});
+  if(o.cloak)poly([[-13,top+2],[-4,top],[-10,sit?-8:-4],[-20,sit?-8:-4]],o.cloak,{shadow:false});
+  const arm=(sx,ang,len=27)=>{g.save();g.translate(sx*10,top+5);g.rotate(-sx*ang);poly([[-4.5,0],[4.5,0],[4,len],[-4,len]],o.sleeve||robe,{sb:3});oval(0,len+3,4.6,4.6,skin,{shadow:false,n:10});g.restore()};
+  arm(-1,o.la??.18);arm(1,o.ra??.18);
+  if(o.hold)o.hold(top);
+  oval(0,hy,11.5,12.5,skin,{n:20});
+  if(o.head){poly([[-14,hy-2],[-12,hy-12],[0,hy-16],[12,hy-12],[14,hy-2],[15,hy+14],[9,hy+16],[10,hy-3],[-10,hy-3],[-9,hy+16],[-15,hy+14]],o.head,{sb:3});
+    if(o.band)poly([[-13,hy-6],[13,hy-6],[13,hy-3],[-13,hy-3]],o.band,{shadow:false})}
+  else if(o.hair){oval(0,hy-4,12.5,9.5,o.hair,{a0:Math.PI*1.02,a1:Math.PI*1.98,shadow:false,n:16});if(o.long)poly([[-12,hy-4],[-13,hy+12],[-8,hy+10],[-9,hy-2]],o.hair,{shadow:false}),poly([[12,hy-4],[13,hy+12],[8,hy+10],[9,hy-2]],o.hair,{shadow:false})}
+  if(o.beard)poly([[-11,hy+2],[-8,hy+13],[0,hy+18],[8,hy+13],[11,hy+2],[6,hy+7],[-6,hy+7]],o.hair||'#4a3020',{shadow:false});
+  // face
+  g.fillStyle='#2b1d12';const ey=hy-1;g.beginPath();g.arc(-4,ey,1.5,0,7);g.arc(4.5,ey,1.5,0,7);g.fill();
+  g.strokeStyle='#2b1d12';g.lineWidth=1.5;g.lineCap='round';g.beginPath();
+  const m=o.mood||'smile';
+  if(m==='smile')g.arc(0.5,hy+3.5,3.6,.25,Math.PI-.25);
+  else if(m==='big'){g.arc(0.5,hy+3,4.6,.1,Math.PI-.1);g.closePath();g.fillStyle='#7a2f2a';g.fill()}
+  else if(m==='sad')g.arc(0.5,hy+8,3.4,Math.PI+.35,-.35);
+  else if(m==='frown'){g.moveTo(-3,hy+6);g.lineTo(4,hy+5);g.moveTo(-6,ey-4);g.lineTo(-2,ey-2.5);g.moveTo(7,ey-4);g.lineTo(3,ey-2.5)}
+  else if(m==='o')g.arc(0.5,hy+5.5,2,0,7);
+  else{g.moveTo(-2.5,hy+5.5);g.lineTo(3.5,hy+5.5)}
+  g.stroke();
+  if(o.blush){g.fillStyle='rgba(220,90,90,.25)';g.beginPath();g.arc(-7,hy+3,2.6,0,7);g.arc(8,hy+3,2.6,0,7);g.fill()}
+  if(o.after)o.after(hy,top);
+  g.restore();
+}
+function jesus(x,y,s,o={}){person(x,y,s,{robe:'#f6efe0',sash:'#b8434f',cloak:'#c9564f',skin:'#c98f62',hair:'#4a2f1c',beard:true,long:true,...o})}
+function crowdList(n,seed,x0,x1,y0,y1,o={}){const a=[];for(let i=0;i<n;i++){const r=k=>hash(i*3.1+seed,k*7.7);
+  a.push({x:lerp(x0,x1,r(1)),y:lerp(y0,y1,r(2)),s:lerp(.62,.82,r(3))*(o.scale||1),robe:ROBE[(r(4)*ROBE.length)|0],skin:SKIN[(r(5)*SKIN.length)|0],hair:HAIR[(r(6)*HAIR.length)|0],
+   beard:r(7)>.62,head:r(8)>.55?ROBE[(r(9)*ROBE.length)|0]:null,flip:r(10)>.5,kid:r(11)>.78,ph:r(12)*6.28})}
+  return a.sort((p,q)=>p.y-q.y)}
+function drawCrowd(list,o={}){list.forEach(p=>person(p.x,p.y,p.s*(p.kid?.75:1),{robe:p.robe,skin:p.skin,hair:p.hair,beard:p.beard&&!p.kid,head:p.head,flip:o.face!==undefined?o.face<p.x:p.flip,sit:o.sit,mood:o.mood||'smile',bob:o.bob?Math.sin(T*2+p.ph)*o.bob:0,ra:o.ra?o.ra(p):.18,la:o.la?o.la(p):.18}))}
+
+/* ================= STEP ENGINE + UI ================= */
+const cap=$('#cap'),capText=$('#captext'),nextB=$('#next'),prevB=$('#prev'),dots=$('#dots'),hint=$('#hint'),hintText=$('#hinttext'),hot=$('#hot'),pop=$('#pop'),verseEl=$('#verse');
+let STEPS=[],step=-1,started=false,ended=false;
+function verse(t,r){if(!t){verseEl.classList.add('hide');return}verseEl.querySelector('.vt').innerHTML=t;verseEl.querySelector('.vr').textContent=r||'';verseEl.classList.remove('hide')}
+function showPop(ic,k,h,p){pop.querySelector('.ic').textContent=ic;pop.querySelector('.k').textContent=k;pop.querySelector('h3').innerHTML=h;pop.querySelector('p').innerHTML=p;pop.classList.remove('hide')}
+function hidePop(){pop.classList.add('hide')}
+const sideEl=$('#side');function side(ic,k,h,p){if(!ic){sideEl.classList.add('hide');return}sideEl.querySelector('.ic').textContent=ic;sideEl.querySelector('.k').textContent=k;sideEl.querySelector('h3').innerHTML=h;sideEl.querySelector('p').innerHTML=p;sideEl.classList.remove('hide')}
+function bub(x,y,who,t){const b=document.createElement('div');b.className='bub';b.innerHTML=`<b>${who}</b>${t}`;Object.assign(b.style,{left:x/W*100+'%',top:y/H*100+'%'});hot.appendChild(b);return b}
+pop.querySelector('.close').onclick=hidePop;
+function clearHot(){hot.innerHTML=''}
+// hotspot: circle/rect in canvas coords
+function hs(x,y,w,h,label,fn,cls='pulse'){const b=document.createElement('button');b.className='hs '+cls;b.setAttribute('aria-label',label);b.title=label;
+  Object.assign(b.style,{left:x/W*100+'%',top:y/H*100+'%',width:w/W*100+'%',height:h/H*100+'%'});b.onclick=e=>{e.stopPropagation();fn(b)};hot.appendChild(b);return b}
+function chip(x,y,label,fn,cls=''){const b=document.createElement('button');b.className='chip '+cls;b.innerHTML=label;Object.assign(b.style,{left:x/W*100+'%',top:y/H*100+'%'});b.onclick=e=>{e.stopPropagation();fn(b)};hot.appendChild(b);return b}
+function refresh(){
+  if(step<0)return;const s=STEPS[step],ok=!s.need||s.need();
+  nextB.disabled=!ok;nextB.classList.toggle('ready',ok&&!!s.need);
+  nextB.textContent=step===STEPS.length-1?'Finish ✓':'Next ▶';
+  prevB.disabled=step===0;
+  const ht=!ok&&s.hint?(typeof s.hint==='function'?s.hint():s.hint):'';
+  hintText.textContent=ht;hint.classList.toggle('hide',!ht);
+  dots.innerHTML=STEPS.map((_,i)=>`<i class="${i===step?'on':''}"></i>`).join('');
+}
+function go(i){
+  step=i;ST=0;const s=STEPS[i];clearHot();hidePop();verse(null);side(null);
+  capText.innerHTML=s.cap;cap.classList.remove('hide');
+  s.enter&&s.enter();refresh();
+}
+nextB.onclick=()=>{if(step<STEPS.length-1)go(step+1);else finish()};
+prevB.onclick=()=>{if(step>0)go(step-1)};
+function finish(){ended=true;cap.classList.add('hide');hint.classList.add('hide');clearHot();hidePop();verse(null);side(null);$('#endcard').classList.remove('hide');if(window.onFinish)onFinish()}
+$('#start').onclick=()=>{$('#titlecard').classList.add('hide');started=true;go(0)};
+$('#again').onclick=()=>{$('#endcard').classList.add('hide');ended=false;if(window.reset)reset();go(0)};
+addEventListener('keydown',e=>{if(!started||ended)return;if(e.key==='ArrowRight'&&!nextB.disabled)nextB.click();if(e.key==='ArrowLeft'&&!prevB.disabled)prevB.click()});
+let lastNow=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.12,(now-lastNow)/1000);lastNow=now;T+=dt;ST+=dt;F=Math.floor(T*6);
+  g.setTransform(cv.width/W,0,0,cv.height/H,0,0);g.clearRect(0,0,W,H);draw(dt);
+  // vignette
+  const v=g.createRadialGradient(W/2,H/2,H*.45,W/2,H/2,H*.95);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(40,20,5,.28)');g.fillStyle=v;g.fillRect(0,0,W,H)}
+
+/* ================= SCENE ================= */
+const TAU=Math.PI*2;
+/* THE NDEBELE KINGDOM & THE MFECANE — lead-in for Skybound Week 4 (Monday, History) */
+const SK=['#6b4430','#7a4a2e','#5a3622','#8a5a3b','#4e2f1d','#94603f'];
+const CLOTH=['#c9a05a','#b5523f','#8a5a35','#d6a64b','#7a4a2e','#e0c48a','#9a6a3e','#5f8d8a'];
+/* ---------- map ---------- */
+const MP=(lon,lat)=>[120+(lon-11)*17,40+(-12-lat)*17];
+const COAST=[[8,-10],[13.8,-11.8],[13,-13.5],[12.3,-15.5],[11.8,-17.2],[12.5,-18.5],[13.4,-20.5],[14.4,-22.4],[14.5,-23.5],[15,-25.5],[15.2,-26.7],[16,-28],[16.5,-28.6],[17.3,-30],[18,-31.5],[18.3,-32.8],[18.4,-34],[19.4,-34.6],[20,-34.8],[21.5,-34.4],[22.1,-34.1],[23.4,-34],[24.9,-34.1],[25.6,-33.9],[26.6,-33.7],[27.9,-33],[29,-32],[30.3,-31],[31,-29.9],[31.9,-28.8],[32.4,-28],[32.9,-26.8],[32.6,-25.9],[33.2,-25.3],[35,-24.5],[35.5,-23.9],[35.4,-22.2],[35.1,-20.9],[34.8,-19.8],[35.6,-18.8],[36.7,-18],[38,-17.2],[39.6,-16.2],[40.4,-14.8],[40.6,-12.8],[40.4,-11.5],[42,-10],[42,-7],[8,-7]];
+const RIV={zambezi:[[22.5,-12],[23,-14],[23.4,-16],[24,-17.5],[25.2,-17.8],[25.86,-17.93],[27,-17.4],[28.8,-16.5],[30,-15.7],[31.5,-15.6],[33.6,-16.2],[34.8,-17],[35.6,-17.9],[36.3,-18.8]],
+  limpopo:[[27.5,-25.6],[27.2,-24.6],[28,-23.3],[29,-22.3],[30.5,-22.3],[31.3,-22.4],[32,-23.6],[32.8,-24.5],[33.3,-25]],
+  orange:[[29,-29.2],[27.5,-30.4],[25.5,-30],[24,-29.4],[22,-28.6],[20,-28.5],[18,-28.3],[16.5,-28.6]],
+  vaal:[[29.5,-26.6],[28,-26.9],[26,-27.6],[24.3,-28.9]]};
+const LAKEM=[[34.4,-9.5],[34.9,-10.6],[34.6,-12],[35.1,-13.6],[35.3,-14.4],[34.9,-14.2],[34.4,-12.8],[34.1,-11],[34,-9.6]];
+const COUNTRIES=[['ZIMBABWE',30.2,-18.6],['SOUTH AFRICA',24.5,-30.8],['BOTSWANA',23.8,-22.3],['MOZAMBIQUE',37.2,-15.4],['NAMIBIA',17.2,-21.5],['ZAMBIA',26.5,-13.6],['MALAWI',33.4,-12.6],['LESOTHO',28.3,-30.1],['ESWATINI',31.5,-26.9]];
+const MZ=[[31.2,-27.8],[30.3,-27.2],[29.4,-26.4],[28.2,-25.6],[27.2,-25.4],[26,-25.5],[26.6,-24],[27.6,-22.9],[28.5,-22.3],[28.8,-21.3],[28.6,-20.15]];
+const MZSTOP=[0,3,5,8,10];
+const MOVES=[{c:'#b8434f',p:MZ,w:4.5},{c:'#6f4fa0',p:[[31.6,-27.6],[32.1,-24.2],[31.9,-20.5],[32.5,-15.6],[33.4,-12.4],[33.8,-10]]},
+  {c:'#2f7f86',p:[[27.6,-27.6],[25.6,-25.2],[24.6,-21.4],[24.2,-18.2],[23.4,-15.4]]},{c:'#c77a2a',p:[[31.9,-27.4],[32.6,-24.9],[33.5,-23.4]]},
+  {c:'#4f7a3a',p:[[29.2,-27.6],[28.6,-28.6],[27.8,-29.3]]},{c:'#4f7a3a',p:[[26.2,-27.3],[27,-28.4],[27.6,-29.2]]},{c:'#8a6a3e',p:[[29.6,-27.9],[30.6,-29.4],[29.6,-30.6]]}];
+const NATIONS=[
+ {ic:'🛡️',lon:31.3,lat:-28.6,n:'Zulu',k:'Kingdom of the Zulu · from about 1816',h:'Shaka builds a powerful kingdom',p:'Shaka united many chiefdoms by conquest and alliance and organised strong age-regiments. Today this area is KwaZulu-Natal in South Africa.'},
+ {ic:'🐄',lon:28.6,lat:-20.15,n:'Ndebele',k:'Ndebele Kingdom · from about 1840',h:'Mzilikazi rebuilds in the north',p:'After their long journey, the Ndebele built their kingdom between the Limpopo and Zambezi rivers. This area is Matabeleland in Zimbabwe today.'},
+ {ic:'⛰️',lon:27.7,lat:-29.4,n:'Basotho',k:'Basotho Kingdom · from about 1824',h:'Moshoeshoe gathers refugees',p:'Moshoeshoe built a mountain fortress at Thaba Bosiu and welcomed people who had lost their homes. His kingdom became the country of Lesotho.'},
+ {ic:'🌿',lon:31.4,lat:-26.4,n:'Swazi',k:'Swazi Kingdom · early 1800s',h:'Sobhuza brings peoples together',p:'Sobhuza I gathered different groups in the hills to the north to form the core of a new kingdom. It became the country of Eswatini.'},
+ {ic:'🌊',lon:33.4,lat:-23.4,n:'Gaza',k:'Gaza Kingdom · 1820s',h:'Soshangane moves north-east',p:'Soshangane led his followers north and founded the Gaza kingdom in what is now southern Mozambique.'},
+ {ic:'🧭',lon:33.4,lat:-12.6,n:'Ngoni',k:'Ngoni peoples · crossed the Zambezi in 1835',h:'Zwangendaba travels furthest',p:'Zwangendaba led his people on an amazing journey north across the Zambezi River. Their descendants live in Malawi, Zambia and Tanzania today.'},
+ {ic:'🏞️',lon:23.5,lat:-15.6,n:'Kololo',k:'Kololo · 1830s–1840s',h:'Sebetwane heads north-west',p:'Sebetwane led the Kololo, a Sotho group, all the way to the floodplains of the upper Zambezi in what is now western Zambia.'}];
+function pathXY(ll){return ll.map(([a,b])=>MP(a,b))}
+function drawPath(pts,k,col,w=3.5,dash=true){if(k<=0)return;let L=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d}
+  let rem=L*cl(k);g.save();g.strokeStyle=col;g.lineWidth=w;g.lineCap='round';g.lineJoin='round';if(dash)g.setLineDash([10,7]);g.beginPath();g.moveTo(...pts[0]);let end=pts[0],ang=0;
+  for(let i=1;i<pts.length&&rem>0;i++){const d=seg[i-1],t=Math.min(1,rem/d),x=lerp(pts[i-1][0],pts[i][0],t),y=lerp(pts[i-1][1],pts[i][1],t);g.lineTo(x,y);ang=Math.atan2(pts[i][1]-pts[i-1][1],pts[i][0]-pts[i-1][0]);end=[x,y];rem-=d}
+  g.stroke();g.setLineDash([]);g.restore();g.save();g.translate(...end);g.rotate(ang);poly([[8,0],[-7,-7],[-3,0],[-7,7]],col,{sb:2,j:.4});g.restore()}
+function drawMap(o={}){
+  sky('#7fb3cf','#9cc6dc');
+  for(let i=0;i<40;i++){const x=hash(i,1)*W,y=hash(i,2)*H;g.save();g.strokeStyle='rgba(255,255,255,.35)';g.lineWidth=2;g.beginPath();g.moveTo(x,y);g.quadraticCurveTo(x+8,y-4+Math.sin(T+i)*2,x+16,y);g.stroke();g.restore()}
+  const land=pathXY(COAST);poly(land,'#ead9ad',{sb:10,sy:5,sx:4,j:.8});
+  g.save();g.beginPath();land.forEach((p,i)=>i?g.lineTo(...p):g.moveTo(...p));g.closePath();g.clip();
+  const gr=g.createLinearGradient(160,0,640,0);gr.addColorStop(0,'rgba(214,170,100,.35)');gr.addColorStop(.55,'rgba(150,180,100,.0)');gr.addColorStop(1,'rgba(110,160,90,.4)');g.fillStyle=gr;g.fillRect(0,0,W,H);
+  if(o.drought){g.fillStyle=`rgba(220,140,60,${o.drought*.25})`;g.fillRect(0,0,W,H)}
+  txt('Kalahari',MP(21.5,-23)[0],MP(21.5,-23)[1],15,'rgba(120,90,50,.55)','italic 700 ');
+  for(let i=0;i<9;i++){const [x,y]=MP(lerp(28.9,30.4,i/8)+(i%2)*.4,lerp(-30.2,-27.2,i/8));poly([[x-9,y+7],[x,y-9],[x+9,y+7]],'#a88f6a',{sb:2,j:.6});poly([[x-3,y-4],[x,y-9],[x+3,y-4]],'#f3ead8',{shadow:false,j:.3})}
+  g.restore();
+  poly(pathXY(LAKEM),'#6fa8cc',{shadow:false,j:.5});
+  for(const k in RIV){const p=pathXY(RIV[k]);g.save();g.strokeStyle='#4f8fc0';g.lineWidth=k==='zambezi'||k==='limpopo'?4:3;g.lineCap='round';g.lineJoin='round';g.beginPath();p.forEach((q,i)=>i?g.lineTo(...q):g.moveTo(...q));g.stroke();g.restore()}
+  const lab=(t,lon,lat,sz=12,c='#2f5f86',f='italic 700 ')=>{const [x,y]=MP(lon,lat);txt(t,x,y,sz,c,f)};
+  lab('Zambezi',29.6,-16.6);lab('Limpopo',30.2,-23.2);lab('Orange',22.5,-29.3);lab('INDIAN OCEAN',37.4,-27.5,13,'rgba(255,255,255,.85)','800 ');lab('ATLANTIC',12.3,-30.5,13,'rgba(255,255,255,.85)','800 ');
+  if(o.mts)lab('Drakensberg',27.6,-28.5,11,'#7a6350');
+  if(o.countries)for(const [n,lon,lat] of COUNTRIES)lab(n,lon,lat,n.length>8?12:13,'rgba(90,60,30,.6)','800 ');
+  // compass + title tag
+  const cx=172,cy=96;poly([[cx,cy-26],[cx+7,cy],[cx,cy+26],[cx-7,cy]],'#fbf3e2',{sb:3});poly([[cx,cy-26],[cx+7,cy],[cx-7,cy]],'#b8434f',{shadow:false});txt('N',cx,cy-36,13,'#3b2a1c','800 ');
+}
+/* ---------- village pieces ---------- */
+function hut(x,y,s,col='#c49a52'){oval(x,y,42*s,36*s,col,{a0:Math.PI,a1:Math.PI*2,n:20});for(let i=1;i<4;i++){g.save();g.strokeStyle='rgba(110,75,35,.45)';g.lineWidth=1.5;g.beginPath();g.ellipse(x,y,42*s*(1-i*.22),36*s*(1-i*.22),0,Math.PI,TAU);g.stroke();g.restore()}
+  oval(x,y,9*s,15*s,'#3b2a1c',{a0:Math.PI,a1:Math.PI*2,shadow:false,n:10});poly([[x-3*s,y-34*s],[x,y-44*s],[x+3*s,y-34*s]],'#a07a3e',{shadow:false})}
+function cow(x,y,s,o={}){g.save();g.translate(x,y);g.scale(s*(o.flip?-1:1),s);const th=o.thin||0,b=o.col||'#f3ead8',pc=o.patch||'#7a4a2e',st=o.walk?Math.sin(T*8+x):0;
+  [[-18,st],[-10,-st],[12,st],[20,-st]].forEach(([lx,a])=>{g.save();g.translate(lx,-20);g.rotate(a*.25);rect(-2.5,0,5,20,'#5a3a22',{shadow:false});g.restore()});
+  oval(0,-28,28,14*(1-th*.35),b,{n:22});oval(-8,-30,8,6,pc,{shadow:false,n:10});oval(11,-25,6,5,pc,{shadow:false,n:10});
+  g.save();g.strokeStyle=b;g.lineWidth=2;g.beginPath();g.moveTo(-27,-30);g.quadraticCurveTo(-36,-22,-33,-12);g.stroke();g.restore();
+  oval(31,-35,9,7.5,b,{n:14});poly([[27,-41],[16,-55],[25,-42]],'#efe3c6',{shadow:false});poly([[33,-41],[44,-55],[35,-41]],'#efe3c6',{shadow:false});
+  g.fillStyle='#2b1d12';g.beginPath();g.arc(34,-37,1.4,0,7);g.fill();g.restore()}
+function sorghum(x,y,s,wilt){const lean=wilt*.9,col=wilt>.5?'#b89a5a':'#5f9a4e';g.save();g.translate(x,y);g.rotate(lean*.5);g.strokeStyle=col;g.lineWidth=3*s;g.beginPath();g.moveTo(0,0);g.quadraticCurveTo(4*s*lean*10,-24*s,6*s*lean*6,-48*s*(1-wilt*.3));g.stroke();
+  const tx=6*s*lean*6,ty=-48*s*(1-wilt*.3);oval(tx,ty-4*s,5*s,9*s,wilt>.5?'#9a7a4a':'#b5523f',{shadow:false,n:10});oval(-6*s,-22*s,8*s,2.5*s,col,{shadow:false,n:8});oval(7*s,-30*s,8*s,2.5*s,col,{shadow:false,n:8});g.restore()}
+function shield(x,y,s){oval(x,y,9*s,15*s,'#f3ead8',{n:14,sb:2});oval(x+1*s,y-4*s,4*s,5*s,'#3b2a1c',{shadow:false,n:8});oval(x-2*s,y+6*s,3*s,4*s,'#7a4a2e',{shadow:false,n:8});rect(x-.8*s,y-17*s,1.6*s,34*s,'#5a3a22',{shadow:false})}
+function villager(x,y,s,i,o={}){person(x,y,s,{robe:CLOTH[i%CLOTH.length],skin:SK[i%SK.length],hair:'#1a1410',head:i%3===1?CLOTH[(i+3)%CLOTH.length]:null,beard:i%4===0,...o})}
+function mzilikazi(x,y,s,o={}){person(x,y,s,{robe:'#c9a05a',cloak:'#8a5a35',skin:'#5a3622',hair:'#1a1410',beard:true,sash:'#f3ead8',...o,
+  after:(hy)=>{rect(-13,hy-11,26,4,'#1a1410',{shadow:false});poly([[4,hy-13],[10,hy-40],[14,hy-14]],'#f3ead8',{shadow:false});poly([[8,hy-14],[16,hy-34],[16,hy-13]],'#b8434f',{shadow:false});
+   for(let k=0;k<6;k++)oval(-9+k*3.6,hy+15,1.6,1.6,['#e9b44c','#b8434f','#f3ead8'][k%3],{shadow:false,grain:false,n:6})}});
+  shield(x+(o.flip?-14:14)*s,y-38*s,s)}
+const TAPIWA={robe:'#3f8f5a',skin:'#6b4430',hair:'#1a1410',sash:'#2f6f46'},NOMVULA={robe:'#e05a3a',skin:'#7a4a2e',hair:'#1a1410',sash:'#e9b44c',
+  after:hy=>{for(let k=0;k<7;k++)oval(-8+k*2.7,hy+15,1.5,1.5,['#2f6fbd','#e9b44c','#f3ead8','#3f8f5a'][k%4],{shadow:false,grain:false,n:6});oval(0,hy-19,7,5,'#1a1410',{shadow:false,n:12})}};
+function village(d,dt){
+  const top=`rgb(${lerp(143,236,d)|0},${lerp(203,190,d)|0},${lerp(230,140,d)|0})`,bot=`rgb(${lerp(251,250,d)|0},${lerp(231,214,d)|0},${lerp(196,160,d)|0})`;
+  sky(top,bot,330);sun(820,lerp(86,70,d),lerp(28,44,d),d>.5?'#f8b43a':'#f6c445');if(d>.3)glow(820,70,lerp(60,300,d),'rgba(255,170,80,.45)',d);
+  if(d<.6){cloud(((T*5+150)%1150)-100,80,.8*(1-d));cloud(((T*3+650)%1150)-100,120,.6*(1-d))}
+  const hl=`rgb(${lerp(169,214,d)|0},${lerp(197,190,d)|0},${lerp(140,128,d)|0})`,hm=`rgb(${lerp(134,201,d)|0},${lerp(180,168,d)|0},${lerp(98,97,d)|0})`,hn=`rgb(${lerp(116,190,d)|0},${lerp(163,150,d)|0},${lerp(82,86,d)|0})`;
+  hill(270,30,1.4,hl,{shadow:false});poly(hillPts(320,40,2.2),hm);
+  // baobab on the hill
+  rect(140,212,22,80,'#8a6a4e');oval(151,206,46,18,d>.5?'#a8925a':'#6ea85d',{n:18});for(let k=0;k<4;k++)rect(125+k*12,190-k%2*6,4,18,'#8a6a4e',{shadow:false});
+  poly(hillPts(360,18,3.4),hn);
+  // river
+  const rw=lerp(20,3,d);poly([[-20,402-rw],[300,396-rw],[620,404-rw],[980,398-rw],[980,404+rw],[620,410+rw],[300,402+rw],[-20,408+rw]],d>.85?'#8fb0b8':'#5d9cc6',{shadow:false,j:.8});
+  if(d>.5)for(let i=0;i<10;i++){const x=40+i*92;g.save();g.strokeStyle='rgba(110,80,40,.5)';g.lineWidth=1.5;g.beginPath();g.moveTo(x,425);g.lineTo(x+10,432);g.lineTo(x+4,440);g.moveTo(x+10,432);g.lineTo(x+22,430);g.stroke();g.restore()}
+  for(let i=0;i<9;i++)sorghum(40+i*24,392,1,d);
+  hut(330,372,1.1);hut(420,360,.9,'#b88d48');hut(250,360,.85,'#bf944d');
+  // kraal
+  oval(680,372,140,34,d>.5?'#c2a06a':'#9a7d4e',{shadow:false});
+  const n=Math.round(lerp(7,3,d));for(let i=0;i<n;i++)cow(600+i*32,372+(i%2)*8,.62,{thin:d,flip:i%2===0,patch:['#7a4a2e','#2b1d12','#b5523f'][i%3]});
+  for(let a=0;a<28;a++){const t=Math.PI*.05+a/27*Math.PI*.9,x=680+Math.cos(t)*140,y=372+Math.sin(t)*34;rect(x-2,y-24,4,24,'#6b4a2e',{shadow:false})}
+  return d}
+/* ---------- state ---------- */
+let opened=0,dry=0,dryT=0,causes=new Set(),mzv=0,mzk=0,pillars=new Set(),nat=new Set(),showC=false,leaveT=-1;
+window.reset=()=>{dv=0;opened=0;dry=0;causes=new Set();mzv=0;mzk=0;pillars=new Set();nat=new Set();showC=false;leaveT=-1};
+const CAUSES=[{l:'☀️ Drought',ic:'☀️',k:'Cause 1',h:'Years of drought',p:'Around the 1800s–1810s the rains failed again and again. People remembered a terrible famine called <b>Madlathule</b>.'},
+ {l:'👪 More people',ic:'👪',k:'Cause 2',h:'A growing population',p:'More people and more cattle needed more land, grazing and water, just when there was less to share.'},
+ {l:'🛡️ Bigger kingdoms',ic:'🛡️',k:'Cause 3',h:'Competition and conflict',p:'Chiefdoms competed for land and cattle. Leaders like Dingiswayo and then Shaka built larger, stronger kingdoms with age-regiments.'},
+ {l:'⛵ Trade & raids',ic:'⛵',k:'Cause 4',h:'Pressure from the coast',p:'Traders at Delagoa Bay wanted ivory and cattle, and some later raided for captives. Settlers were also pushing in from the Cape.'}];
+const MZINFO=[
+ {ic:'🛡️',k:'Early 1820s · Zululand',h:'Mzilikazi breaks away',p:'Mzilikazi, leader of the Khumalo people, was a commander for Shaka. After falling out with Shaka (people tell different versions of why), he led his followers and their cattle away to the north-west.'},
+ {ic:'🏘️',k:'Late 1820s · the highveld',h:'A new home on the grasslands',p:'On the wide grasslands near today’s Pretoria, Mzilikazi built towns and his kingdom grew. People from many groups joined, sometimes by choice and sometimes after being defeated.'},
+ {ic:'⚠️',k:'1830s · Mosega',h:'Pressure from every side',p:'Moving west to Mosega, the Ndebele clashed with Griqua and Rolong raiders, Zulu armies, and then Voortrekkers: Boer settlers moving inland. After a defeat at Mosega in 1837, Mzilikazi decided to move again.'},
+ {ic:'🌊',k:'1837–1838 · the Limpopo',h:'The long journey north',p:'Travelling in groups with their families and huge herds of cattle, the Ndebele crossed the Limpopo River into land that is now Zimbabwe.'},
+ {ic:'👑',k:'About 1840 onward · Matabeleland',h:'A kingdom rebuilt',p:'Mzilikazi reunited his people and built a new capital near today’s Bulawayo. The region became known as Matabeleland. He ruled until 1868, and then his son Lobengula became king.'}];
+const PILLARS=[{l:'🐄 Cattle',ic:'🐄',k:'Holding the nation together',h:'Cattle',p:'Cattle meant wealth. They gave milk, meat and hides, and were given as <b>lobola</b> (bride wealth) and as gifts that built loyalty to the king.'},
+ {l:'🛡️ Age-regiments',ic:'🛡️',k:'Holding the nation together',h:'Amabutho (age-regiments)',p:'Young people were grouped by age into regiments, each living in its own town. Serving together bound people from different backgrounds into one nation.'},
+ {l:'🤝 Newcomers',ic:'🤝',k:'Holding the nation together',h:'Welcoming newcomers',p:'Sotho, Tswana, Shona and other peoples became part of the Ndebele. They learned the isiNdebele language and customs, so the kingdom kept growing.'},
+ {l:'👑 A strong king',ic:'👑',k:'Holding the nation together',h:'A king at the centre',p:'Mzilikazi held power at the centre. He made the big decisions and led the regiments, which kept a huge and varied kingdom united.'}];
+
+STEPS=[
+ {cap:'<b>Tapiwa and Nomvula</b> have the logbook ready. Today it opens on the early <b>1800s</b>, and a time when whole nations were on the move.',
+  hint:'Tap the logbook to open it',need:()=>opened>0,
+  enter(){bub(250,250,'Tapiwa','Sharp, crew! This one’s a big story. Whole nations on the move!');
+    if(!opened){const b=hs(480,382,120,70,'Open the logbook',b=>{opened=T;b.classList.add('done');refresh();bub(700,250,'Nomvula','My people are part of this story. Let’s find out how it all began.')});b.style.borderRadius='1.5cqw'}}},
+ {cap:'In the early 1800s the rains failed for <b>year after year</b>. Rivers shrank, crops withered and cattle grew thin.',
+  hint:()=>`Tap the sun to see the drought (${Math.min(dry,4)} of 4 years)`,need:()=>dry>=4,
+  enter(){if(dry<4){const b=hs(820,78,110,110,'Another year without rain',b=>{if(dry<4){dry++;dryT=T}if(dry>=4)b.classList.add('done');refresh()})}}},
+ {cap:'Drought was only part of it. Many <b>pressures</b> built up at once. Historians still discuss which ones mattered most. Add each one.',
+  hint:()=>`Tap each cause (${causes.size} of 4)`,need:()=>causes.size===4,
+  enter(){dry=4;CAUSES.forEach((c,i)=>chip(200,120+i*58,c.l,b=>{causes.add(i);b.classList.add('gold');side(c.ic,c.k,c.h,c.p);if(causes.size===4&&leaveT<0)leaveT=T;refresh()},causes.has(i)?'gold':''))}},
+ {cap:'This time is called the <b>Mfecane</b> (“the crushing” or “the scattering”), or <b>Difaqane</b> in Sesotho. From about <b>1815 to 1840</b>, many groups moved across the region.',
+  enter(){side('🗺️','About 1815–1840','The Mfecane','Groups broke apart, joined together and moved, sometimes hundreds of kilometres. Each coloured arrow shows the rough path of a group on the move.')}},
+ {cap:'One of these journeys created the <b>Ndebele Kingdom</b>. Follow Mzilikazi and his people, one stop at a time.',
+  hint:()=>`Tap the next glowing stop (${mzv} of 5)`,need:()=>mzv===5,
+  enter(){side(null);const add=()=>{clearHot();if(mzv<5){const [x,y]=MP(...MZ[MZSTOP[mzv]]);hs(x,y,46,46,'Next stop',()=>{side(MZINFO[mzv].ic,MZINFO[mzv].k,MZINFO[mzv].h,MZINFO[mzv].p);mzv++;refresh();add()})}};add();if(mzv>0)side(MZINFO[mzv-1].ic,MZINFO[mzv-1].k,MZINFO[mzv-1].h,MZINFO[mzv-1].p)}},
+ {cap:'How do you hold a brand-new kingdom together, when its people came from so many places? Tap each idea to <b>build the nation</b>.',
+  hint:()=>`Tap each idea (${pillars.size} of 4)`,need:()=>pillars.size===4,
+  enter(){PILLARS.forEach((c,i)=>chip(190,110+i*58,c.l,b=>{pillars.add(i);b.classList.add('gold');side(c.ic,c.k,c.h,c.p);refresh()},pillars.has(i)?'gold':''))}},
+ {cap:'The Ndebele were not the only ones. Out of the upheaval, <b>new nations</b> formed across the region, and some are countries today.',
+  hint:()=>`Tap each nation (${nat.size} of 7)`,need:()=>nat.size===7,
+  enter(){NATIONS.forEach((n,i)=>{const [x,y]=MP(n.lon,n.lat);hs(x,y,44,44,n.n,b=>{nat.add(i);b.classList.add('done');side(n.ic,n.k,n.h,n.p);refresh()},nat.has(i)?'done':'pulse')});
+    chip(220,470-32,showC?'Hide today’s countries':'🗺️ Show today’s countries',b=>{showC=!showC;b.innerHTML=showC?'Hide today’s countries':'🗺️ Show today’s countries'})}},
+ {cap:'<b>Wonder question:</b> if drought and conflict forced your whole community to leave and rebuild somewhere new, what would be hardest to leave behind?',
+  enter(){bub(690,250,'Nomvula','People lost so much, but they carried what mattered: family, cattle, language and each other. From all that upheaval, new nations were built. That’s the pattern of it.');
+    bub(300,240,'Tapiwa','It’s fine, it’s fine… okay, it was really hard. But they didn’t give up.')}}
+];
+STEPS[6].enter=function(){NATIONS.forEach((n,i)=>{const [x,y]=MP(n.lon,n.lat);hs(x,y,44,44,n.n,b=>{nat.add(i);b.classList.add('done');side(n.ic,n.k,n.h,n.p);refresh()},nat.has(i)?'done':'pulse')});
+  const c=chip(250,392,showC?'Hide today’s countries':'🗺️ Show today’s countries',b=>{showC=!showC;b.innerHTML=showC?'Hide today’s countries':'🗺️ Show today’s countries'});};
+
+function intro(dt){
+  sky('#f6b26b','#fde7c4',330);sun(830,140,34,'#f8c94a');glow(830,140,240,'rgba(255,200,120,.5)');
+  cloud(((T*4+200)%1150)-100,80,.8,'#fff3e0');
+  hill(300,40,1.1,'#c9b37a',{shadow:false});poly(hillPts(340,30,2.6),'#a8a25a');
+  // Sekuru Josiah's bush plane
+  g.save();g.translate(150,312);poly([[-70,-8],[60,-14],[80,-4],[60,6],[-60,4]],'#f3ead8');poly([[-20,-14],[40,-30],[50,-16]],'#e0c48a');poly([[-64,-6],[-80,-30],[-56,-6]],'#b8434f');
+  oval(54,-6,8,8,'#6fa8cc',{shadow:false});rect(-10,4,4,18,'#5a3a22',{shadow:false});rect(30,4,4,18,'#5a3a22',{shadow:false});oval(-8,24,7,7,'#2b1d12');oval(32,24,7,7,'#2b1d12');g.restore();
+  poly(hillPts(392,14,3.7),'#8f9a4e');
+  person(300,430,1.45,{...TAPIWA,mood:'big',ra:1.3+Math.sin(T*3)*.25,la:.2});
+  person(660,430,1.4,{...NOMVULA,mood:'smile',flip:true,la:.4,ra:.3});
+  // crate + logbook
+  rect(420,388,120,42,'#9a6a3e');rect(420,384,120,8,'#7a5230',{shadow:false});
+  const o=opened?ease((T-opened)*1.5):0;
+  if(o<.05){rect(436,360,88,26,'#7a4a2e');rect(440,363,80,20,'#8a5a35',{shadow:false});txt('LOGBOOK',480,373,11,'#e9c46a','800 ')}
+  else{glow(480,350,lerp(20,170,o),'rgba(255,236,170,.9)',o);poly([[480,370],[428,362-o*6],[426,384],[480,388]],'#fbf3e2');poly([[480,370],[532,362-o*6],[534,384],[480,388]],'#f6ecd8');
+    for(let k=0;k<4;k++){g.save();g.strokeStyle='rgba(90,60,30,.4)';g.lineWidth=1;g.beginPath();g.moveTo(436,368+k*4);g.lineTo(474,372+k*4);g.moveTo(486,372+k*4);g.lineTo(526,368+k*4);g.stroke();g.restore()}
+    const p=eob((T-opened-.4)*1.4);if(p>0){g.save();g.translate(480,300-p*20);g.scale(p,p);['1','8','0','0','s'].forEach((c,i)=>{g.save();g.translate(-60+i*30,0);g.rotate((hash(i,3)-.5)*.3);rect(-13,-17,26,34,['#b8434f','#e9b44c','#3f8f5a','#2f6fbd','#e05a3a'][i]);txt(c,0,1,22,'#fbf3e2','800 ');g.restore()});g.restore()}}
+}
+function pressure(dt){
+  village(1,dt);
+  const n=causes.size,lv=leaveT>0?ease((T-leaveT-1.5)/5):0;
+  // more people arriving (cause 2), regiments on hill (cause 3), trade ship (cause 4)
+  if(causes.has(1))for(let i=0;i<5;i++)villager(560+i*40,318+(i%2)*6,.55,i+2,{mood:'flat'});
+  if(causes.has(2))for(let i=0;i<9;i++){villager(250+i*30,256+(i%2)*4,.5,i,{mood:'flat',robe:'#7a4a2e'});shield(258+i*30,232,.5)}
+  if(causes.has(3)){g.save();g.translate(900,250);poly([[-34,0],[34,0],[26,12],[-26,12]],'#7a5230');poly([[0,-40],[0,0],[22,-4]],'#fbf3e2',{shadow:false});g.restore()}
+  // the gauge
+  rect(40,40,40,190,'#fbf3e2',{sb:4});rect(48,48,24,174,'#e5d8c0',{shadow:false});const h=174*n/4;rect(48,222-h,24,h,n>=4?'#b8434f':'#e9b44c',{shadow:false});
+  txt('PRESSURE',60,246,13,'#3b2a1c','800 ');
+  // villagers pack up and leave
+  for(let i=0;i<6;i++){const x=lerp(360+i*55,-200+i*55,lv);villager(x,418,1,i,{mood:lv>0?'sad':'flat',flip:true,bob:lv>0&&lv<1?-Math.abs(Math.sin(T*7+i))*3:0,
+    hold:i%2?top=>{oval(0,top-24,16,10,'#c9a05a',{n:12})}:null})}
+  if(lv>0)for(let i=0;i<3;i++)cow(lerp(520+i*60,-60+i*60,lv),424,.7,{thin:1,flip:true,walk:true});
+  if(lv>0){rect(340,330,280,40,'#fbf3e2',{sb:3});txt('Whole communities had to move…',480,350,15,'#b8434f','800 ')}
+}
+let dv=0;
+function dryScene(dt){
+  dv+=(cl(dry/4)-dv)*Math.min(1,dt*2);const d=dv;
+  village(d,dt);
+  for(let i=0;i<4;i++)villager(300+i*90,418,1,i,{mood:d>.6?'sad':d>.3?'flat':'smile',la:d>.6&&i%2?1.2:.2});
+  rect(40,40,250,52,'#fbf3e2',{sb:4});txt('Years without good rain:',140,66,15,'#3b2a1c','800 ');txt(String(dry),268,66,24,'#b8434f','800 ');
+}
+function mfecaneMap(dt){drawMap({mts:true,drought:.4});const k=ease(ST/5);
+  MOVES.forEach((m,i)=>drawPath(pathXY(m.p),k*1.2-i*.05,m.c,m.w||3.5));
+  if(k>.6){g.save();g.globalAlpha=ease((k-.6)/.4);[['Zulu',31.4,-28.7],['Delagoa Bay',33.6,-25.9]].forEach(([n,a,b])=>{const [x,y]=MP(a,b);rect(x+8,y-10,n.length*8+12,20,'#fbf3e2',{sb:2});txt(n,x+14+n.length*4,y,12,'#3b2a1c','700 ')});g.restore()}
+}
+function mzMap(dt){drawMap({mts:true});const pts=pathXY(MZ);
+  const target=mzv===0?0:MZSTOP[mzv-1];mzk+=(target-mzk)*Math.min(1,dt*1.6);
+  // walked path
+  const done=pts.slice(0,Math.floor(mzk)+1),fr=mzk%1;if(Math.floor(mzk)<pts.length-1)done.push([lerp(pts[Math.floor(mzk)][0],pts[Math.floor(mzk)+1][0],fr),lerp(pts[Math.floor(mzk)][1],pts[Math.floor(mzk)+1][1],fr)]);
+  if(done.length>1)drawPath(done,1,'#b8434f',4.5);
+  MZSTOP.forEach((si,i)=>{const [x,y]=pts[si],v=i<mzv;oval(x,y,12,12,v?'#b8434f':'#fbf3e2',{sb:3,n:14});txt(String(i+1),x,y+1,12,v?'#fbf3e2':'#3b2a1c','800 ')});
+  const pos=done[done.length-1];g.save();g.translate(pos[0],pos[1]-14);mzilikazi(0,0,.38,{mood:'smile'});cow(-16,2,.3,{walk:mzk%1>.02&&mzk%1<.98});g.restore();
+  if(mzv>=5){const [x,y]=MP(28.6,-20.15);rect(x+18,y-12,118,24,'#fbf3e2',{sb:2});txt('Matabeleland',x+77,y,14,'#b8434f','800 ')}
+}
+function nation(dt){
+  sky('#9fd2ea','#fbe9c6',330);sun(840,80,26);cloud(((T*5+200)%1150)-100,74,.8);
+  hill(280,30,1.8,'#b6c98c',{shadow:false});poly(hillPts(330,26,2.4),'#97b86c');
+  const p=pillars;
+  // regimental towns on the hills
+  if(p.has(1))[[150,300],[820,296],[700,280]].forEach(([x,y],k)=>{for(let i=0;i<4;i++)hut(x+i*26-40,y+(i%2)*4,.42,'#c49a52');shield(x+70,y-8,.6)});
+  poly(hillPts(370,14,3.2),'#86ad5c');
+  // the royal town: ring of huts around a cattle kraal
+  for(let i=0;i<14;i++){const a=Math.PI+i/13*Math.PI,x=480+Math.cos(a)*300,y=380+Math.sin(a)*60;if(p.has(1)||i%3===0)hut(x,y+10,.62,['#c49a52','#b88d48','#bf944d'][i%3])}
+  oval(480,404,170,40,'#9a7d4e',{shadow:false});
+  for(let a=0;a<30;a++){const t=Math.PI*.05+a/29*Math.PI*.9,x=480+Math.cos(t)*170,y=404+Math.sin(t)*40;rect(x-2,y-24,4,24,'#6b4a2e',{shadow:false})}
+  if(p.has(0))for(let i=0;i<8;i++)cow(380+i*28,404+(i%2)*10,.6,{flip:i%2===1,patch:['#7a4a2e','#2b1d12','#b5523f'][i%3]});
+  if(p.has(3)){glow(480,330,110,'rgba(255,236,170,.7)',.8);mzilikazi(480,388,1.25,{mood:'smile',ra:.9,la:.3})}
+  if(p.has(2))for(let i=0;i<6;i++){const k=ease((T%9)/9);villager(i<3?40+i*40:820+i*30,446,1,i+1,{mood:'big',flip:i>=3,robe:['#2f6fbd','#e05a3a','#3f8f5a','#e9b44c','#9a6a9e','#b5523f'][i]})}
+  if(p.size===4){rect(330,200,200,40,'#fbf3e2',{sb:3});txt('One nation',430,220,18,'#b8434f','800 ')}
+}
+function nationsMap(dt){drawMap({countries:showC,mts:true});
+  MOVES.forEach(m=>{g.save();g.globalAlpha=.35;drawPath(pathXY(m.p),1,m.c,3);g.restore()});
+  NATIONS.forEach((n,i)=>{const [x,y]=MP(n.lon,n.lat),on=nat.has(i);oval(x,y,15,15,on?'#e9b44c':'#fbf3e2',{sb:3,n:16});g.font='14px system-ui,"Apple Color Emoji","Segoe UI Emoji"';g.textAlign='center';g.textBaseline='middle';g.fillText(n.ic,x,y+1);
+    if(on){rect(x+18,y-11,n.n.length*8.5+14,22,'#fbf3e2',{sb:2});txt(n.n,x+25+n.n.length*4.25,y,13,'#3b2a1c','800 ')}});
+}
+function outro(dt){intro(dt)}
+function draw(dt){[intro,dryScene,pressure,mfecaneMap,mzMap,nation,nationsMap,outro][Math.max(0,step)](dt)}
+
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
