@@ -48,6 +48,8 @@ window.COLLECTIONS = [
       { file: "shailene-the-missing-glasses.html", title: "The Missing Glasses", author: "Shailene", thumb: "thumbs/shailene-the-missing-glasses.jpg" },
       { file: "shifali-sparkle-story.html", title: "The Bottle That Would Not Budge", author: "Shifali", thumb: "thumbs/shifali-sparkle-story.jpg" },
       { file: "the-giant-turnip.html", title: "The Giant Turnip: The Big Pull", thumb: "thumbs/the-giant-turnip.jpg" },
+      { file: "vera-the-christmas-star.html", title: "The Christmas Star", author: "Vera", thumb: "thumbs/vera-the-christmas-star.jpg" },
+      { file: "valeria-the-stuck-door.html", title: "The Stuck Door", author: "Valeria", thumb: "thumbs/valeria-the-stuck-door.jpg" },
     ]
   },
   {
