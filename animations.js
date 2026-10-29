@@ -50,6 +50,7 @@ window.COLLECTIONS = [
       { file: "the-giant-turnip.html", title: "The Giant Turnip: The Big Pull", thumb: "thumbs/the-giant-turnip.jpg" },
       { file: "vera-the-christmas-star.html", title: "The Christmas Star", author: "Vera", thumb: "thumbs/vera-the-christmas-star.jpg" },
       { file: "valeria-the-stuck-door.html", title: "The Stuck Door", author: "Valeria", thumb: "thumbs/valeria-the-stuck-door.jpg" },
+      { file: "pesi-the-memory-verse-under-the-haamonga.html", title: "The Memory Verse Under the Ha’amonga", author: "Pesi", thumb: "thumbs/pesi-the-memory-verse-under-the-haamonga.jpg" },
     ]
   },
   {

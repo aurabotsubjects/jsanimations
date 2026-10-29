@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Memory Verse Under the Ha’amonga</title>
+<style>
+  html,body{margin:0;height:100%;background:#2a1a10;overflow:hidden}
+  svg#stage{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .cut{stroke:#fff7e0;stroke-width:1.4;paint-order:stroke fill;stroke-linejoin:round}
+  .btxt,.ctxt,.ttxt{font-family:"Chalkboard SE","Comic Sans MS","Comic Neue","Segoe Print","Marker Felt","Trebuchet MS",sans-serif}
+  .btxt{font-weight:800;fill:#3a2418}
+  .ctxt{fill:#3a2418}
+  .ttxt{font-weight:800;fill:#3a2418}
+  #replay{
+    position:fixed;left:50%;top:46%;
+    transform:translate(-50%,-50%) scale(.5) rotate(-3deg);
+    opacity:0;pointer-events:none;cursor:pointer;
+    display:flex;align-items:center;gap:14px;
+    padding:18px 34px;border-radius:18px;
+    background:#fff3d6;color:#3a2418;
+    border:5px dashed #c8102e;
+    font:800 clamp(22px,3.6vw,38px) "Chalkboard SE","Comic Sans MS","Comic Neue","Segoe Print","Trebuchet MS",sans-serif;
+    box-shadow:4px 7px 0 rgba(42,22,10,.45), 0 0 0 6px #fff3d6;
+    transition:opacity .7s ease, transform .7s cubic-bezier(.3,1.7,.5,1);
+  }
+  #replay.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1) rotate(-3deg)}
+  #replay:hover{transform:translate(-50%,-50%) scale(1.07) rotate(2deg)}
+  #replay:focus-visible{outline:4px solid #ffb12b;outline-offset:4px}
+  #replay svg{width:1.1em;height:1.1em}
+</style>
+</head>
+<body>
+
+<svg id="stage" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- rough hand-cut edge + paper shadow -->
+    <filter id="rough" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G" result="d"/>
+      <feDropShadow in="d" dx="2.2" dy="3" stdDeviation="1.6" flood-color="#2a160a" flood-opacity=".42"/>
+    </filter>
+    <filter id="shadow" x="-10%" y="-10%" width="125%" height="135%">
+      <feDropShadow dx="2" dy="3" stdDeviation="2" flood-color="#2a160a" flood-opacity=".4"/>
+    </filter>
+    <!-- ngatu (Tongan tapa cloth) pattern -->
+    <pattern id="ngatu" width="96" height="48" patternUnits="userSpaceOnUse">
+      <rect width="96" height="48" fill="#7b3b1f"/>
+      <rect y="0" width="96" height="3" fill="#e9cf9b"/>
+      <rect y="45" width="96" height="3" fill="#e9cf9b"/>
+      <path d="M24,7 L38,24 L24,41 L10,24Z" fill="#e9cf9b"/>
+      <path d="M24,15 L31,24 L24,33 L17,24Z" fill="#241309"/>
+      <path d="M58,41 L72,8 L86,41Z" fill="#241309"/>
+      <path d="M65,36 L72,19 L79,36Z" fill="#e9cf9b"/>
+      <circle cx="48" cy="12" r="3" fill="#e9cf9b"/>
+      <circle cx="48" cy="36" r="3" fill="#e9cf9b"/>
+      <circle cx="3" cy="24" r="2.2" fill="#e9cf9b"/>
+      <circle cx="93" cy="24" r="2.2" fill="#e9cf9b"/>
+    </pattern>
+    <!-- woven ta'ovala mat -->
+    <pattern id="matp" width="6" height="6" patternUnits="userSpaceOnUse">
+      <path d="M0,0L6,6M6,0L0,6" stroke="#9a7434" stroke-width=".9" opacity=".8"/>
+    </pattern>
+  </defs>
+</svg>
+
+<button id="replay" type="button" aria-label="Replay the story">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#c8102e" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 3.5V8h-4.5"/></svg>
+  Replay
+</button>
+
+<script>
+(() => {
+"use strict";
+
+/* =====================================================================
+   EASY EDIT: put the memory verse here (and optionally its reference).
+   ===================================================================== */
+const MEMORY_VERSE     = "Be kind to one another, tender-hearted, forgiving each other, just as God also in Christ forgave you.";
+const MEMORY_VERSE_REF = "Ephesians 4:32";            // e.g. "Psalm 119:11"  (leave empty for none)
+
+/* ===================================================================== */
+const W = 1280, H = 720, FPS = 15;               // 15 fps = stop-motion feel
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("stage");
+const btn = document.getElementById("replay");
+const RED = "#c8102e", CREAM = "#fff3d6", INK = "#3a2418";
+
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp  = (a, b, t) => a + (b - a) * t;
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) if (attrs[k] !== undefined) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const g = (parent, attrs) => el("g", attrs, parent);
+const cut = (parent, tag, attrs) => el(tag, Object.assign({ class: "cut" }, attrs), parent);
+
+/* ---------- easing ---------- */
+const E = {
+  lin: p => p,
+  io:  p => p < .5 ? 2*p*p : 1 - Math.pow(-2*p + 2, 2) / 2,
+  out: p => 1 - Math.pow(1 - p, 3),
+  back: p => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3*Math.pow(p-1, 3) + c1*Math.pow(p-1, 2); },
+  bounce: p => { const n = 7.5625, d = 2.75;
+    if (p < 1/d) return n*p*p;
+    if (p < 2/d) return n*(p -= 1.5/d)*p + .75;
+    if (p < 2.5/d) return n*(p -= 2.25/d)*p + .9375;
+    return n*(p -= 2.625/d)*p + .984375; }
+};
+
+/* ---------- tiny animation engine (all timing runs off one clock) ---------- */
+let jobs = [], lastRender = 0, T = 0;
+const actors = [], bubbles = [], amb = [], L = {};
+function anim(ms, fn, ease = E.io) {
+  return new Promise(res => jobs.push({ t0: null, ms, fn, ease, res }));
+}
+const wait = ms => anim(ms, () => {}, E.lin);
+const par = (...p) => Promise.all(p);
+
+function loop(ts) {
+  T = ts / 1000;
+  const cur = jobs; jobs = [];
+  for (const j of cur) {
+    if (j.t0 === null) j.t0 = ts;
+    let p = j.ms <= 0 ? 1 : (ts - j.t0) / j.ms;
+    const done = p >= 1; if (done) p = 1;
+    j.fn(j.ease(p), p);
+    if (done) j.res(); else jobs.push(j);
+  }
+  if (ts - lastRender >= 1000 / FPS - 2) { lastRender = ts; renderAll(); }
+  requestAnimationFrame(loop);
+}
+
+function renderAll() {
+  for (const f of amb) f(T);
+  for (const a of actors) a.render();
+  for (const layer of [L.crowd, L.front]) {
+    if (!layer) continue;
+    const arr = actors.filter(a => a.layer === layer).sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    if (arr.some((a, i) => layer.children[i] !== a.node)) arr.forEach(a => layer.appendChild(a.node));
+  }
+  for (const b of bubbles) {
+    const a = b.a;
+    const x = clamp(a.x, b.w/2 + 12, W - 12 - b.w/2);
+    const y = clamp(a.top() - 8 - (b.lift || 0), b.h + 24, 598);
+    b.grp.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${Math.max(0.001, b.s).toFixed(3)})`);
+  }
+}
+
+/* =====================================================================
+   ACTORS
+   ===================================================================== */
+class Actor {
+  constructor(node, o = {}) {
+    this.node = node; this.sc = o.sc || 1; this.h = o.h || 50;
+    this.hopH = o.hopH ?? 6; this.stepLen = o.stepLen || 26;
+    this.x = -400; this.y = 588; this.rot = 0; this.flip = 1; this.op = 1;
+    this.hop = 0; this.ty = 0; this.crouch = 0; this.wob = 0;
+    this.layer = null; this.sound = o.sound || ""; this.nm = o.nm || "";
+    actors.push(this);
+  }
+  put(layer) { this.layer = layer; layer.appendChild(this.node); return this; }
+  top() { return this.y + this.hop + this.ty - this.h * this.sc * (1 - 0.26 * this.crouch); }
+  render() {
+    const jr = (Math.random() - .5) * 1.4, jx = (Math.random() - .5) * 1.2, jy = (Math.random() - .5);
+    const c = this.crouch;
+    const sy = this.sc * (1 - 0.26 * c), sx = this.sc * (1 + 0.07 * c);
+    this.node.setAttribute("transform",
+      `translate(${(this.x + jx).toFixed(1)},${(this.y + this.hop + this.ty + jy).toFixed(1)}) ` +
+      `rotate(${(this.rot + this.wob + jr).toFixed(1)}) scale(${(sx * this.flip).toFixed(3)},${sy.toFixed(3)})`);
+    this.node.setAttribute("opacity", this.op.toFixed(2));
+  }
+}
+
+class Person extends Actor {
+  constructor(o) {
+    const P = buildPerson(o);
+    super(P.root, { sc: o.sc, h: 75 + 2 * (o.headR || 12), hopH: 5, stepLen: 34, nm: o.nm });
+    this.P = P; this.isPerson = true;
+    this.bend = o.bend0 || 0; this.aR = -5; this.aL = 5; this.lR = 1; this.lL = 1;
+    this.smile = 0; this.cam = 0; this.rest = { bend: this.bend, aR: -5, aL: 5, lR: 1, lL: 1 };
+  }
+  render() {
+    super.render();
+    const P = this.P;
+    P.upper.setAttribute("transform", `rotate(${this.bend.toFixed(1)},0,-50)`);
+    P.armR.setAttribute("transform", `translate(14,-72) rotate(${this.aR.toFixed(1)}) scale(1,${this.lR.toFixed(2)})`);
+    P.armL.setAttribute("transform", `translate(-14,-72) rotate(${this.aL.toFixed(1)}) scale(1,${this.lL.toFixed(2)})`);
+    P.m1.setAttribute("display", this.smile > .5 ? "none" : "inline");
+    P.m2.setAttribute("display", this.smile > .5 ? "inline" : "none");
+    P.cam.setAttribute("display", this.cam ? "inline" : "none");
+    const bl = Math.random() < 0.025;
+    P.eyes.setAttribute("transform", bl ? `translate(0,${P.cy}) scale(1,.15) translate(0,${-P.cy})` : "");
+  }
+}
+
+/* ---------- people (drawn at 100 units tall, feet at 0,0, facing front) ---------- */
+function buildPerson(o) {
+  const R = o.headR || 12, cy = -75 - R;
+  const root = el("g", { filter: "url(#rough)" });
+  // legs & feet
+  cut(root, "rect", { x: -10, y: -32, width: 8, height: 32, rx: 3.5, fill: o.skin });
+  cut(root, "rect", { x: 2,   y: -32, width: 8, height: 32, rx: 3.5, fill: o.skin });
+  cut(root, "ellipse", { cx: -7, cy: -1.5, rx: 7, ry: 3, fill: o.skinD });
+  cut(root, "ellipse", { cx:  7, cy: -1.5, rx: 7, ry: 3, fill: o.skinD });
+  // tupenu (wrap skirt) with ngatu-style hem
+  cut(root, "path", { d: "M-17,-50 L17,-50 L20,-22 L-20,-22 Z", fill: o.skirt });
+  cut(root, "rect", { x: -20, y: -27, width: 40, height: 5, fill: o.hem });
+  for (let i = 0; i < 7; i++) el("path", { d: `M${-19 + i*6},-22 l3,-5 l3,5 Z`, fill: "#fff3d6" }, root);
+
+  const upper = g(root);
+  const armL = g(upper), armR = g(upper);      // re-ordered below so arms sit on top
+  // torso
+  cut(upper, "rect", { x: -13, y: -76, width: 26, height: 27, rx: 6, fill: o.top });
+  el("path", { d: "M-7,-76 L0,-66 L7,-76 Z", fill: o.skin }, upper);
+  el("path", { d: "M-7,-76 L0,-66 L7,-76", fill: "none", stroke: o.topAccent, "stroke-width": 2, "stroke-linejoin": "round" }, upper);
+  // ta'ovala (woven mat) tied with a rope
+  cut(upper, "rect", { x: -16, y: -54, width: 32, height: 17, rx: 2, fill: o.mat });
+  el("rect", { x: -16, y: -54, width: 32, height: 17, rx: 2, fill: "url(#matp)" }, upper);
+  el("path", { d: "M-16,-52 Q0,-47 16,-52", stroke: "#6b4423", "stroke-width": 2.4, fill: "none" }, upper);
+  el("circle", { cx: 0, cy: -49.5, r: 2.4, fill: "#6b4423" }, upper);
+  // arms (on top of torso & mat)
+  for (const [grp, tone] of [[armL, 0], [armR, 1]]) {
+    upper.appendChild(grp);
+    cut(grp, "rect", { x: -3.6, y: 0, width: 7.2, height: 14, rx: 3, fill: o.top });
+    cut(grp, "rect", { x: -3.2, y: 11, width: 6.4, height: 15, rx: 3, fill: o.skin });
+    cut(grp, "circle", { cx: 0, cy: 27, r: 3.8, fill: o.skin });
+  }
+  // neck, ears, head
+  cut(upper, "rect", { x: -3.6, y: -81, width: 7.2, height: 9, fill: o.skinD });
+  cut(upper, "circle", { cx: -R, cy: cy + 1, r: 3, fill: o.skinD });
+  cut(upper, "circle", { cx:  R, cy: cy + 1, r: 3, fill: o.skinD });
+  cut(upper, "circle", { cx: 0, cy, r: R, fill: o.skin });
+  // hair
+  const hr = R + 1;
+  cut(upper, "path", {
+    d: `M${-hr},${cy - 1} A${hr},${hr} 0 0 1 ${hr},${cy - 1} Q${R*.5},${cy - R*.5} 0,${cy - R*.55} Q${-R*.5},${cy - R*.5} ${-hr},${cy - 1} Z`,
+    fill: o.hair });
+  if (o.hairStyle === "bun") cut(upper, "circle", { cx: 0, cy: cy - R - 3, r: R * .42, fill: o.hair });
+  // face
+  const eyes = g(upper);
+  el("ellipse", { cx: -R*.38, cy: cy + 1.5, rx: 1.7, ry: 2.1, fill: "#2a1a12" }, eyes);
+  el("ellipse", { cx:  R*.38, cy: cy + 1.5, rx: 1.7, ry: 2.1, fill: "#2a1a12" }, eyes);
+  el("circle", { cx: -R*.62, cy: cy + 6, r: 2.7, fill: "#d9603f", opacity: .45 }, upper);
+  el("circle", { cx:  R*.62, cy: cy + 6, r: 2.7, fill: "#d9603f", opacity: .45 }, upper);
+  const m1 = el("path", { d: `M-3.6,${cy + 6.5} Q0,${cy + 9.5} 3.6,${cy + 6.5}`, stroke: "#4a1d12", "stroke-width": 1.5, fill: "none", "stroke-linecap": "round" }, upper);
+  const m2 = el("path", { d: `M-5.4,${cy + 5.5} Q0,${cy + 14.5} 5.4,${cy + 5.5} Z`, fill: "#8a1f1f", display: "none" }, upper);
+  if (o.glasses) {
+    el("circle", { cx: -R*.38, cy: cy + 1.5, r: 4.4, fill: "none", stroke: "#3a2418", "stroke-width": 1.2 }, upper);
+    el("circle", { cx:  R*.38, cy: cy + 1.5, r: 4.4, fill: "none", stroke: "#3a2418", "stroke-width": 1.2 }, upper);
+    el("path", { d: `M${-R*.38 + 4.4},${cy + 1.5} L${R*.38 - 4.4},${cy + 1.5}`, stroke: "#3a2418", "stroke-width": 1.1 }, upper);
+  }
+  // frangipani flower in the hair
+  if (o.flower) {
+    const f = g(upper, { transform: `translate(${-R*.72},${cy - R*.42})` });
+    for (let i = 0; i < 5; i++) cut(f, "ellipse", { cx: 0, cy: -4, rx: 2.8, ry: 4.4, fill: "#fffaf0", transform: `rotate(${i*72})` });
+    el("circle", { r: 1.9, fill: "#ffcf40" }, f);
+  }
+  // camera (shown only when raised)
+  const cam = g(upper, { display: "none" });
+  cut(cam, "rect", { x: -13, y: cy - 8, width: 26, height: 17, rx: 3, fill: "#2b2b33" });
+  cut(cam, "rect", { x: -9, y: cy - 12, width: 10, height: 5, rx: 1.5, fill: "#3a3a45" });
+  el("circle", { cx: 0, cy: cy + .5, r: 6, fill: "#7b8aa6" }, cam);
+  el("circle", { cx: 0, cy: cy + .5, r: 3.6, fill: "#1c1c24" }, cam);
+  el("circle", { cx: -1.4, cy: cy - 1, r: 1.1, fill: "#fff" }, cam);
+  el("rect", { x: 6, y: cy - 6, width: 5, height: 3, fill: "#f2f2f2" }, cam);
+  cut(cam, "circle", { cx: -16, cy: cy + 1, r: 3.8, fill: o.skin });
+  cut(cam, "circle", { cx:  16, cy: cy + 1, r: 3.8, fill: o.skin });
+
+  return { root, upper, armL, armR, m1, m2, cam, eyes, cy };
+}
+
+/* ---------- animals (side view, facing right, feet at 0,0) ---------- */
+function buildChicken() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-4,-11 L-4,0 M-6,0 L-1,0 M5,-11 L5,0 M3,0 L8,0", stroke: "#e59a2b", "stroke-width": 2.4, fill: "none", "stroke-linecap": "round" }, r);
+  cut(r, "path", { d: "M-12,-22 Q-34,-44 -28,-52 Q-18,-38 -10,-27 Z", fill: "#2e5d4b" });
+  cut(r, "path", { d: "M-12,-20 Q-38,-34 -36,-42 Q-22,-32 -10,-24 Z", fill: "#8a3a1c" });
+  cut(r, "path", { d: "M-12,-24 Q-26,-52 -20,-58 Q-14,-44 -9,-28 Z", fill: RED });
+  cut(r, "ellipse", { cx: 0, cy: -22, rx: 16, ry: 12, fill: "#c9622f" });
+  cut(r, "ellipse", { cx: -3, cy: -22, rx: 9, ry: 6.5, fill: "#8f3d1a", transform: "rotate(-15 -3 -22)" });
+  cut(r, "circle", { cx: 13, cy: -36, r: 7.5, fill: "#c9622f" });
+  for (const x of [10, 13.5, 17]) cut(r, "circle", { cx: x, cy: x === 13.5 ? -45.5 : -44, r: 2.9, fill: "#d8202d" });
+  cut(r, "path", { d: "M19.5,-37.5 L27,-35 L19.5,-32.5 Z", fill: "#f2b21e" });
+  cut(r, "ellipse", { cx: 19, cy: -30.5, rx: 2, ry: 3.2, fill: "#d8202d" });
+  el("circle", { cx: 15.5, cy: -37.5, r: 1.4, fill: "#1a1210" }, r);
+  return r;
+}
+function buildCat() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-16,-15 Q-33,-18 -31,-36 Q-30,-42 -24,-40", stroke: "#e08a35", "stroke-width": 5.5, fill: "none", "stroke-linecap": "round" }, r);
+  for (const x of [-13, -6, 7, 13]) cut(r, "rect", { x: x - 2.6, y: -10, width: 5.2, height: 10, rx: 2.4, fill: "#d27a2b" });
+  cut(r, "ellipse", { cx: 0, cy: -15, rx: 18, ry: 10, fill: "#e08a35" });
+  for (const x of [-8, -1, 6]) el("path", { d: `M${x},-24 q1,4 -1,8`, stroke: "#a85a1a", "stroke-width": 2.2, fill: "none", "stroke-linecap": "round" }, r);
+  cut(r, "path", { d: "M10,-33 L11,-45 L18.5,-36 Z", fill: "#e08a35" });
+  cut(r, "path", { d: "M17,-36 L24,-45 L26.5,-32 Z", fill: "#e08a35" });
+  el("path", { d: "M12,-36 L12.5,-41 L16,-37 Z", fill: "#f2a6b0" }, r);
+  cut(r, "circle", { cx: 18, cy: -27, r: 10, fill: "#e08a35" });
+  el("ellipse", { cx: 22, cy: -23, rx: 5.2, ry: 3.4, fill: "#fff0d8" }, r);
+  el("circle", { cx: 14.5, cy: -28.5, r: 2.1, fill: "#7cc24a" }, r);
+  el("circle", { cx: 22, cy: -28.5, r: 2.1, fill: "#7cc24a" }, r);
+  el("ellipse", { cx: 14.8, cy: -28.5, rx: .7, ry: 1.7, fill: "#1a1210" }, r);
+  el("ellipse", { cx: 22.3, cy: -28.5, rx: .7, ry: 1.7, fill: "#1a1210" }, r);
+  el("path", { d: "M25.6,-25.4 L28.2,-25.4 L26.9,-23.8 Z", fill: "#e07a90" }, r);
+  el("path", { d: "M27,-24 L34,-26 M27,-23 L34,-22 M17,-24 L11,-26 M17,-23 L11,-21", stroke: "#fff7e0", "stroke-width": .9, fill: "none" }, r);
+  return r;
+}
+function buildDog() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-22,-27 Q-35,-33 -30,-46", stroke: "#a56a3a", "stroke-width": 5.5, fill: "none", "stroke-linecap": "round" }, r);
+  for (const x of [-19, -11, 11, 18]) cut(r, "rect", { x: x - 3, y: -14, width: 6, height: 14, rx: 2.5, fill: "#a56a3a" });
+  cut(r, "ellipse", { cx: 0, cy: -22, rx: 24, ry: 12, fill: "#b87a45" });
+  el("ellipse", { cx: -6, cy: -26, rx: 8, ry: 5.5, fill: "#e9d3b0" }, r);
+  cut(r, "circle", { cx: 24, cy: -34, r: 11, fill: "#b87a45" });
+  cut(r, "rect", { x: 28, y: -35, width: 13, height: 9, rx: 4, fill: "#d9a56f" });
+  el("circle", { cx: 41, cy: -33.5, r: 3, fill: "#1a1210" }, r);
+  el("ellipse", { cx: 36, cy: -24, rx: 2.4, ry: 4, fill: "#e8647c" }, r);
+  cut(r, "path", { d: "M18,-43 Q9,-32 15,-22 Q23,-27 23,-41 Z", fill: "#6d4122" });
+  el("circle", { cx: 27, cy: -37, r: 1.7, fill: "#1a1210" }, r);
+  return r;
+}
+function buildLizard() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-13,-7 Q-28,-1 -38,-12 Q-42,-17 -37,-20", stroke: "#7fb83a", "stroke-width": 4.6, fill: "none", "stroke-linecap": "round" }, r);
+  el("path", { d: "M10,-5 L17,0 M5,-4 L4,0 M-6,-4 L-8,0 M-11,-5 L-16,0", stroke: "#6ca12e", "stroke-width": 2.8, fill: "none", "stroke-linecap": "round" }, r);
+  cut(r, "ellipse", { cx: 0, cy: -7, rx: 15, ry: 5.2, fill: "#7fb83a" });
+  for (const x of [-6, 0, 6]) el("circle", { cx: x, cy: -8, r: 1.6, fill: "#4f8a22" }, r);
+  cut(r, "ellipse", { cx: 18, cy: -8.5, rx: 7.5, ry: 5.5, fill: "#8fc84a" });
+  el("circle", { cx: 21, cy: -11, r: 2, fill: "#ffd400" }, r);
+  el("circle", { cx: 21.3, cy: -11, r: .9, fill: "#1a1210" }, r);
+  el("path", { d: "M25,-7.5 l5,-1.6 m-5,1.6 l5,.6", stroke: "#e8647c", "stroke-width": 1, fill: "none" }, r);
+  return r;
+}
+function buildPig() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-24,-28 q-9,-4 -5,-10 q5,-4 7,2", stroke: "#e692a0", "stroke-width": 2.4, fill: "none", "stroke-linecap": "round" }, r);
+  for (const x of [-16, -9, 9, 16]) { cut(r, "rect", { x: x - 3.2, y: -11, width: 6.4, height: 11, rx: 2.4, fill: "#e692a0" }); el("rect", { x: x - 3.2, y: -3, width: 6.4, height: 3, fill: "#b8606e" }, r); }
+  cut(r, "ellipse", { cx: 0, cy: -22, rx: 25, ry: 16, fill: "#f4aeb4" });
+  cut(r, "circle", { cx: 24, cy: -26, r: 12.5, fill: "#f6b6bc" });
+  cut(r, "ellipse", { cx: 34, cy: -23, rx: 7, ry: 6, fill: "#ef8f9d" });
+  el("circle", { cx: 32, cy: -23, r: 1.1, fill: "#8a3a4a" }, r);
+  el("circle", { cx: 36.3, cy: -23, r: 1.1, fill: "#8a3a4a" }, r);
+  cut(r, "path", { d: "M17,-36 L21,-48 L29,-35 Z", fill: "#e692a0" });
+  el("circle", { cx: 27, cy: -30, r: 1.7, fill: "#1a1210" }, r);
+  el("circle", { cx: 22, cy: -22, r: 3, fill: "#ee8d9b", opacity: .55 }, r);
+  return r;
+}
+function buildHorse() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-33,-58 Q-54,-54 -49,-22 Q-44,-38 -32,-44 Z", fill: "#2a1a12" }, r);
+  for (const [x, c] of [[-26, "#86512b"], [-17, "#86512b"], [17, "#9a6236"], [25, "#9a6236"]]) {
+    cut(r, "rect", { x: x - 3.6, y: -42, width: 7.2, height: 42, rx: 3, fill: c });
+    el("rect", { x: x - 3.6, y: -6, width: 7.2, height: 6, rx: 2, fill: "#2a1a12" }, r);
+  }
+  cut(r, "ellipse", { cx: 0, cy: -50, rx: 34, ry: 17, fill: "#9a6236" });
+  cut(r, "path", { d: "M18,-60 L32,-90 L48,-82 L34,-48 Z", fill: "#9a6236" });
+  cut(r, "ellipse", { cx: 51, cy: -80, rx: 17, ry: 8.5, fill: "#9a6236", transform: "rotate(38 51 -80)" });
+  el("ellipse", { cx: 62, cy: -68, rx: 6.5, ry: 5, fill: "#6e3f1f" }, r);
+  el("circle", { cx: 63, cy: -69, r: 1.2, fill: "#1a1210" }, r);
+  cut(r, "path", { d: "M36,-92 L38,-104 L45,-91 Z", fill: "#86512b" });
+  el("path", { d: "M33,-92 Q20,-84 17,-62 Q28,-66 35,-78 Z", fill: "#2a1a12" }, r);
+  el("path", { d: "M40,-90 Q47,-96 52,-86 Q46,-88 40,-82 Z", fill: "#2a1a12" }, r);
+  el("circle", { cx: 49, cy: -82, r: 1.9, fill: "#1a1210" }, r);
+  return r;
+}
+function buildMouse() {
+  const r = el("g", { filter: "url(#rough)" });
+  el("path", { d: "M-10,-6 Q-22,-4 -22,-14 Q-22,-20 -16,-18", stroke: "#f0a8b8", "stroke-width": 1.8, fill: "none", "stroke-linecap": "round" }, r);
+  el("ellipse", { cx: -4, cy: -1.2, rx: 3.5, ry: 1.7, fill: "#f0a8b8" }, r);
+  el("ellipse", { cx: 6, cy: -1.2, rx: 3.5, ry: 1.7, fill: "#f0a8b8" }, r);
+  cut(r, "ellipse", { cx: 0, cy: -8, rx: 11, ry: 8, fill: "#b9b4ad" });
+  cut(r, "path", { d: "M6,-16 Q14,-18.5 22,-10.5 Q14,-3.5 6,-5 Z", fill: "#c8c3bc" });
+  cut(r, "circle", { cx: 7, cy: -19, r: 5, fill: "#c8c3bc" });
+  el("circle", { cx: 7, cy: -19, r: 3, fill: "#f0a8b8" }, r);
+  cut(r, "circle", { cx: 13.5, cy: -18.5, r: 4.2, fill: "#c8c3bc" });
+  el("circle", { cx: 13.5, cy: -18.5, r: 2.4, fill: "#f0a8b8" }, r);
+  el("circle", { cx: 22, cy: -10.6, r: 1.7, fill: "#e0728a" }, r);
+  el("circle", { cx: 15.5, cy: -12.2, r: 1.3, fill: "#1a1210" }, r);
+  el("path", { d: "M20,-9.5 L27,-11 M20,-8.5 L27,-7.5", stroke: "#fff7e0", "stroke-width": .8, fill: "none" }, r);
+  return r;
+}
+
+/* =====================================================================
+   MOTION HELPERS
+   ===================================================================== */
+function walk(a, x, y = a.y, ms = 1500, o = {}) {
+  const x0 = a.x, y0 = a.y, dist = Math.abs(x - x0) + Math.abs(y - y0);
+  const steps = Math.max(2, Math.round(dist / a.stepLen)), hh = o.hopH ?? a.hopH;
+  const face = o.face !== false;
+  if (face && Math.abs(x - x0) > 1) a.flip = x > x0 ? 1 : -1;
+  return anim(ms, (e, p) => {
+    a.x = lerp(x0, x, e); a.y = lerp(y0, y, e);
+    const s = Math.sin(p * steps * Math.PI);
+    a.hop = p < 1 ? -Math.abs(s) * hh : 0;
+    a.rot = p < 1 && face ? s * 2.5 : 0;
+  }, o.ease || E.io);
+}
+function to(a, props, ms = 400, ease = E.io) {
+  const s = {}; for (const k in props) s[k] = a[k];
+  return anim(ms, e => { for (const k in props) a[k] = lerp(s[k], props[k], e); }, ease);
+}
+function jump(a, x, y, ms, h) {
+  const x0 = a.x, y0 = a.y;
+  if (Math.abs(x - x0) > 1) a.flip = x > x0 ? 1 : -1;
+  return anim(ms, (e, p) => { a.x = lerp(x0, x, e); a.y = lerp(y0, y, e); a.hop = -4 * h * p * (1 - p); if (p >= 1) a.hop = 0; }, E.lin);
+}
+const hopInPlace = (a, h = 14, n = 2, ms = 520) =>
+  anim(ms, (e, p) => { a.ty = p < 1 ? -Math.abs(Math.sin(p * n * Math.PI)) * h : 0; }, E.lin);
+const talk = (a, ms) =>
+  anim(ms, (e, p) => { a.ty = p < 1 ? -Math.abs(Math.sin(p * ms / 250 * Math.PI)) * 2.6 : 0; }, E.lin);
+const waveLoop = (a, ms, side = "R") => {
+  const k = side === "R" ? "aR" : "aL", dir = side === "R" ? -1 : 1, lk = side === "R" ? "lR" : "lL";
+  a[lk] = 1;
+  return anim(ms, (e, p) => { a[k] = dir * (145 + Math.sin(p * ms / 150) * 24); if (p >= 1) a[k] = side === "R" ? -5 : 5; }, E.lin);
+};
+const shake = (list, ms) =>
+  anim(ms, (e, p) => { list.forEach((a, i) => { a.wob = p < 1 ? Math.sin(p * ms / 55 + i * 1.7) * 6 : 0; }); }, E.lin);
+const armsRest = (a, ms = 300) => to(a, { aR: -5, aL: 5, lR: 1, lL: 1 }, ms);
+
+/* ---------- speech bubbles ---------- */
+function bubble(a, text, o = {}) {
+  const grp = g(L.bub, { filter: "url(#shadow)" });
+  const fs = o.fs || 24;
+  const t = el("text", { class: "btxt", "text-anchor": "middle", "font-size": fs }, grp);
+  t.textContent = text;
+  const bb = t.getBBox();
+  const w = Math.max(54, bb.width + 32), h = bb.height + 14;
+  const body = g(grp, {});
+  grp.insertBefore(body, t);
+  cut(body, "rect", { x: -w / 2, y: -(h + 14), width: w, height: h, rx: 14, fill: o.fill || CREAM });
+  cut(body, "path", { d: "M-9,-16 L9,-16 L0,0 Z", fill: o.fill || CREAM });
+  el("path", { d: "M-8,-15.2 L8,-15.2", stroke: o.fill || CREAM, "stroke-width": 2.6 }, body);
+  t.setAttribute("y", -(h + 14) + h / 2 + fs * 0.34);
+  const b = { grp, a, w, h, s: 0, lift: o.lift || 0 };
+  grp.setAttribute("transform", "scale(0.001)");
+  bubbles.push(b);
+  return b;
+}
+function killBubble(b) { b.grp.remove(); const i = bubbles.indexOf(b); if (i >= 0) bubbles.splice(i, 1); }
+async function say(a, text, ms = 1400, o = {}) {
+  const b = bubble(a, text, o);
+  await anim(240, e => b.s = e, E.back);
+  await wait(ms);
+  await anim(150, e => b.s = 1 - e, E.lin);
+  killBubble(b);
+}
+
+/* ---------- caption card ---------- */
+let capText, capMeas;
+function wrapLines(meas, str, maxW) {
+  const words = str.split(" "), out = []; let cur = "";
+  for (const w of words) {
+    const test = cur ? cur + " " + w : w;
+    meas.textContent = test;
+    if (meas.getComputedTextLength() > maxW && cur) { out.push(cur); cur = w; } else cur = test;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function setCaption(str, o = {}) {
+  while (capText.firstChild) capText.removeChild(capText.firstChild);
+  if (!str) return;
+  const style = `font-style:${o.italic ? "italic" : "normal"};font-weight:${o.bold ? 800 : 700}`;
+  capMeas.setAttribute("style", style);
+  let fs = 30, lines;
+  for (fs = 30; fs >= 22; fs -= 2) {
+    capMeas.setAttribute("font-size", fs);
+    lines = wrapLines(capMeas, str, 1030);
+    if (lines.length <= 2) break;
+  }
+  capText.setAttribute("font-size", fs);
+  capText.setAttribute("style", style);
+  const lh = fs * 1.22, y0 = 661 - (lines.length - 1) * lh / 2 + fs * 0.34;
+  lines.forEach((ln, i) => { const ts = el("tspan", { x: 640, y: (y0 + i * lh).toFixed(1) }, capText); ts.textContent = ln; });
+  anim(220, e => capText.setAttribute("opacity", e), E.lin);
+}
+const readTime = s => clamp(1000 + s.length * 46, 1800, 7500);
+async function narrate(text, o = {}) { setCaption(text, o); await wait(o.ms || readTime(text)); }
+
+/* =====================================================================
+   SCENE
+   ===================================================================== */
+function wavy(y, amp, wl, phase, step = 14, x0 = -30, x1 = W + 30, bottom = H) {
+  let d = `M${x0},${bottom}`;
+  for (let x = x0; x <= x1; x += step) d += ` L${x},${(y + Math.sin(x / wl + phase) * amp).toFixed(1)}`;
+  return d + ` L${x1},${bottom} Z`;
+}
+function scallop(y, r, off, bottom) {
+  let d = `M${-80 + off},${bottom} L${-80 + off},${y}`;
+  for (let x = -80 + off; x < W + 100; x += 2 * r) d += ` a${r},${r} 0 0 1 ${2 * r},0`;
+  const xe = -80 + off + 2 * r * Math.ceil((W + 180 - off) / (2 * r));
+  return d + ` L${xe},${bottom} Z`;
+}
+function flower(parent, x, y, r, petal, center, n = 5) {
+  const f = g(parent, { transform: `translate(${x},${y})` });
+  for (let i = 0; i < n; i++) cut(f, "ellipse", { cx: 0, cy: -r * .55, rx: r * .46, ry: r * .62, fill: petal, transform: `rotate(${i * 360 / n})` });
+  el("circle", { r: r * .3, fill: center }, f);
+  return f;
+}
+function palm(parent, x0, y0, x1, y1, bend, sc) {
+  const grp = g(parent, { filter: "url(#shadow)" });
+  const cx = (x0 + x1) / 2 + bend, cy = (y0 + y1) / 2;
+  const pt = t => ({ x: (1-t)*(1-t)*x0 + 2*(1-t)*t*cx + t*t*x1, y: (1-t)*(1-t)*y0 + 2*(1-t)*t*cy + t*t*y1 });
+  const nr = t => { const dx = 2*(1-t)*(cx-x0) + 2*t*(x1-cx), dy = 2*(1-t)*(cy-y0) + 2*t*(y1-cy), l = Math.hypot(dx, dy); return { x: -dy/l, y: dx/l }; };
+  const N = 9;
+  for (let i = 0; i < N; i++) {
+    const t0 = i / N, t1 = (i + 1) / N, p0 = pt(t0), p1 = pt(t1), n0 = nr(t0), n1 = nr(t1);
+    const w0 = lerp(30, 16, t0) * sc / 2, w1 = lerp(30, 16, t1) * sc / 2;
+    cut(grp, "path", { d: `M${p0.x + n0.x*w0},${p0.y + n0.y*w0} L${p1.x + n1.x*w1},${p1.y + n1.y*w1} L${p1.x - n1.x*w1},${p1.y - n1.y*w1} L${p0.x - n0.x*w0},${p0.y - n0.y*w0} Z`, fill: i % 2 ? "#8a5a31" : "#9d6b3a" });
+  }
+  const crown = g(grp, { transform: `translate(${x1},${y1})` });
+  const specs = [[1,-85,.85,0],[-1,-85,.85,0],[1,-42,1,0],[-1,-42,1,0],[1,-8,1.05,1],[-1,-8,1.05,1],[1,28,.9,1],[-1,28,.9,1],[1,-62,.95,1],[-1,-62,.95,1]];
+  specs.forEach(([fl, rot, len, front], i) => {
+    const f = g(crown);
+    cut(f, "path", { d: "M0,0 C25,-28 70,-34 112,8 C72,-6 30,-4 0,7 Z", fill: front ? "#4aa54c" : "#2f7d38" });
+    el("path", { d: "M0,3 Q55,-12 108,8", fill: "none", stroke: "#2c6a33", "stroke-width": 1.6 }, f);
+    amb.push(t => f.setAttribute("transform", `scale(${fl * len},${len}) rotate(${rot + Math.sin(t * 1.3 + i * 1.1) * 3.5})`));
+  });
+  cut(crown, "circle", { cx: 0, cy: 2, r: 9, fill: "#3c9440" });
+  for (const [cx2, cy2] of [[-6, 9], [6, 11], [0, 15]]) cut(crown, "circle", { cx: cx2, cy: cy2, r: 6.5, fill: "#6b4a2b" });
+  return grp;
+}
+
+function buildScene() {
+  [...svg.children].forEach(c => { if (c.tagName.toLowerCase() !== "defs") c.remove(); });
+  jobs = []; bubbles.length = 0; actors.length = 0; amb.length = 0;
+  Object.keys(L).forEach(k => delete L[k]);
+  for (const k of ["bg", "plaque", "crowd", "mon", "front", "fg", "band", "bub", "over"]) L[k] = g(svg);
+  for (const k of ["bg", "mon", "band"]) L[k].setAttribute("style", "will-change:transform");
+
+  /* ----- sky ----- */
+  el("rect", { x: 0, y: 0, width: W, height: 620, fill: "#8fd3ea" }, L.bg);
+  el("path", { d: wavy(330, 10, 70, 1, 16, -30, W + 30, 620), fill: "#a9e0ee" }, L.bg);
+  el("path", { d: wavy(400, 8, 60, 2, 16, -30, W + 30, 620), fill: "#c5ecf1" }, L.bg);
+
+  // sun (rays slowly turn)
+  const sun = g(L.bg, { filter: "url(#shadow)" });
+  const sunPos = g(sun, { transform: "translate(265,150)" });
+  const rays = g(sunPos);
+  for (let i = 0; i < 16; i++) {
+    const long = i % 2 === 0;
+    cut(rays, "path", { d: `M-9,-60 L0,${long ? -100 : -86} L9,-60 Z`, fill: "#ffc83d", transform: `rotate(${i * 22.5})` });
+  }
+  cut(sunPos, "circle", { r: 56, fill: "#ffb12b" });
+  cut(sunPos, "circle", { r: 43, fill: "#ffd451" });
+  amb.push(t => rays.setAttribute("transform", `rotate(${t * 6})`));
+
+  // clouds
+  [[190, 100, 1.0, 9, 0], [620, 120, .8, 6, 400], [980, 82, 1.1, 8, 900], [1120, 185, .7, 5, 250]].forEach(([x, y, s, sp, ph], i) => {
+    const c = g(L.bg, { filter: "url(#shadow)" });
+    const inner = g(c);
+    for (const [cx, cy, r] of [[0, 0, 24], [28, -12, 31], [60, 0, 25], [32, 8, 27]]) cut(inner, "circle", { cx, cy, r, fill: "#fffdf7" });
+    cut(inner, "rect", { x: -20, y: 6, width: 98, height: 22, rx: 11, fill: "#fffdf7" });
+    amb.push(t => inner.setAttribute("transform", `translate(${(((x + 250 + (t + ph / 30) * sp) % 1650) - 250).toFixed(1)},${y + Math.sin(t * .5 + i) * 3}) scale(${s})`));
+  });
+
+  // paper birds
+  [[0, 210, 38], [1, 160, 26]].forEach(([k, y, sp], i) => {
+    const b = g(L.bg);
+    cut(b, "path", { d: "M-14,0 Q-7,-10 0,0 Q7,-10 14,0 Q7,-4 0,5 Q-7,-4 -14,0 Z", fill: "#2a3a4a" });
+    amb.push(t => b.setAttribute("transform", `translate(${(((t * sp + 300 * i) % 1500) - 100).toFixed(1)},${(y + Math.sin(t * 1.2 + i * 2) * 14).toFixed(1)}) scale(1,${(.65 + .4 * Math.sin(t * 7 + i)).toFixed(2)})`));
+  });
+
+  // far island + sea
+  cut(L.bg, "path", { d: "M830,480 Q900,420 960,430 Q1015,414 1075,480 Z", fill: "#3a8c5e" });
+  cut(L.bg, "path", { d: "M900,480 Q950,445 1010,480 Z", fill: "#2f7a50" });
+  [[945, 432], [1030, 430]].forEach(([x, y]) => {
+    el("path", { d: `M${x},${y} q2,-14 8,-24`, stroke: "#2a5f40", "stroke-width": 2.4, fill: "none" }, L.bg);
+    cut(L.bg, "path", { d: `M${x + 8},${y - 24} q-12,-8 -20,2 q10,-2 20,4 q12,-8 22,0 q-12,-4 -22,-6 Z`, fill: "#2a5f40" });
+  });
+  [["#4cb3c9", 480, 20, 0], ["#2f9ab5", 496, 20, 20], ["#1d84a4", 512, 20, 8]].forEach(([c, y, r, off], i) => {
+    const wv = g(L.bg, { filter: "url(#shadow)" }), inner = g(wv);
+    cut(inner, "path", { d: scallop(y, r, off, 560), fill: c });
+    amb.push(t => inner.setAttribute("transform", `translate(${(Math.sin(t * .8 + i * 1.3) * 9).toFixed(1)},${(Math.sin(t * 1.3 + i) * 2).toFixed(1)})`));
+  });
+
+  /* ----- grass ----- */
+  const gBack = g(L.bg, { filter: "url(#shadow)" });
+  el("path", { d: wavy(520, 5, 80, 0, 14, -30, W + 30, 620), fill: "#79bb5e" }, gBack);
+  palm(L.bg, 1010, 526, 1042, 412, 14, .55);
+  const gMid = g(L.bg, { filter: "url(#shadow)" });
+  el("path", { d: wavy(547, 6, 100, 2, 14, -30, W + 30, 620), fill: "#5aa447" }, gMid);
+  const gFront = g(L.bg, { filter: "url(#shadow)" });
+  let d = `M-30,620 L-30,574`;
+  for (let x = -30; x < W + 40; x += 16) d += ` L${x + 5},${568 - ((x / 16) % 3) * 3} L${x + 11},${575} L${x + 16},${574}`;
+  el("path", { d: d + ` L${W + 40},620 Z`, fill: "#3f8d39" }, gFront);
+
+  // flowers on the grass
+  [[60, 556, 15, 0], [130, 580, 12, 1], [255, 566, 13, 1], [310, 594, 11, 0], [1180, 560, 15, 0], [1120, 590, 12, 1],
+   [1010, 568, 12, 1], [970, 596, 10, 0], [590, 560, 11, 0], [700, 598, 10, 1], [215, 552, 10, 0], [1240, 590, 12, 1]].forEach(([x, y, r, k]) => {
+    if (k) flower(L.bg, x, y, r, "#fffaf0", "#ffcf40"); else flower(L.bg, x, y, r, "#e8283c", "#ffd23f");
+  });
+
+  // big palms
+  palm(L.bg, 92, 596, 172, 236, -34, 1);
+  palm(L.bg, 1192, 596, 1106, 230, 34, 1);
+
+  /* ----- the memory-verse stone (behind the crowd) ----- */
+  const glow = el("rect", { x: 566, y: 536, width: 148, height: 50, rx: 14, fill: "#ffe36a", opacity: 0 }, L.plaque);
+  L.glow = glow;
+  const pl = g(L.plaque, { filter: "url(#rough)" });
+  cut(pl, "rect", { x: 556, y: 572, width: 168, height: 18, rx: 7, fill: "#b9ae96" });
+  cut(pl, "rect", { x: 574, y: 540, width: 132, height: 40, rx: 8, fill: "#d2c8b0" });
+  [[550, 566], [558, 566], [566, 566]].forEach(() => {});
+  for (let i = 0; i < 3; i++)
+    el("path", { d: `M584,${551 + i * 10} L696,${551 + i * 10}`, stroke: "#6d6552", "stroke-width": 1.6, "stroke-dasharray": i === 1 ? "3 2 6 2 2 2" : "5 2 2 2 4 2" }, pl);
+  // sparkles
+  const sparks = [[574, 538], [708, 546]].map(([x, y], i) => {
+    const s = g(L.plaque, { transform: `translate(${x},${y}) scale(0)` });
+    cut(s, "path", { d: "M0,-15 Q2,-2 15,0 Q2,2 0,15 Q-2,2 -15,0 Q-2,-2 0,-15 Z", fill: "#ffe36a" });
+    return { s, x, y, i, on: 0 };
+  });
+  L.sparks = sparks;
+  amb.push(t => sparks.forEach(p => p.s.setAttribute("transform", `translate(${p.x},${p.y}) scale(${(p.on * (.8 + .35 * Math.sin(t * 7 + p.i * 2))).toFixed(2)}) rotate(${(t * 40).toFixed(0)})`)));
+
+  /* ----- Ha'amonga 'a Maui ----- */
+  const pillar = (pts, shade, pits) => {
+    const gp = g(L.mon, { filter: "url(#rough)" });
+    cut(gp, "path", { d: pts, fill: "#d9d0bb" });
+    el("path", { d: shade, fill: "#bfb39a" }, gp);
+    pits.forEach(([x, y, rx, ry]) => el("ellipse", { cx: x, cy: y, rx, ry, fill: "#a89d86", opacity: .75 }, gp));
+    return gp;
+  };
+  pillar("M368,586 L363,430 L370,330 L366,262 L398,252 L440,256 L458,262 L462,340 L458,440 L463,586 Z",
+         "M440,256 L458,262 L462,340 L458,440 L463,586 L430,586 L436,440 L432,340 Z",
+         [[390, 300, 6, 4], [412, 372, 4, 3], [384, 470, 7, 4], [420, 520, 5, 3], [400, 420, 3, 2]]);
+  pillar("M822,586 L818,440 L823,340 L820,262 L842,256 L884,252 L914,262 L912,340 L918,430 L914,586 Z",
+         "M884,252 L914,262 L912,340 L918,430 L914,586 L880,586 L888,440 L884,340 Z",
+         [[845, 310, 6, 4], [866, 392, 5, 3], [838, 480, 7, 4], [870, 540, 5, 3], [850, 420, 3, 2]]);
+  const lin = g(L.mon, { filter: "url(#rough)" });
+  cut(lin, "path", { d: "M338,190 L360,184 L640,180 L920,184 L942,192 L944,250 L920,262 L640,266 L360,262 L338,252 Z", fill: "#e3dac6" });
+  el("path", { d: "M340,238 L338,252 L360,262 L640,266 L920,262 L944,250 L942,236 L640,248 Z", fill: "#bdb199" }, lin);
+  [[420, 214, 7, 4], [560, 205, 5, 3], [700, 222, 8, 4], [820, 208, 5, 3], [890, 226, 6, 3], [480, 232, 4, 2]].forEach(([x, y, rx, ry]) =>
+    el("ellipse", { cx: x, cy: y, rx, ry, fill: "#a89d86", opacity: .7 }, lin));
+  el("path", { d: "M560,185 L552,206 L560,218 M770,184 L778,200", stroke: "#a89d86", "stroke-width": 1.6, fill: "none" }, lin);
+
+  // frangipani garland draped over the lintel
+  const gar = g(L.mon, { filter: "url(#shadow)" });
+  const q = t => ({ x: (1-t)*(1-t)*350 + 2*(1-t)*t*640 + t*t*930, y: (1-t)*(1-t)*258 + 2*(1-t)*t*372 + t*t*258 });
+  el("path", { d: "M350,258 Q640,372 930,258", stroke: "#3c8f3f", "stroke-width": 5, fill: "none" }, gar);
+  for (let i = 0; i <= 24; i++) {
+    const p = q(i / 24), k = i % 3;
+    if (k === 0) flower(gar, p.x, p.y + 4, 10, "#fffaf0", "#ffcf40");
+    else if (k === 1) cut(gar, "path", { d: `M${p.x},${p.y + 2} q9,-3 12,6 q-9,4 -12,-6 Z`, fill: "#4aa54c" });
+    else flower(gar, p.x, p.y + 4, 8, "#f08aa6", "#ffe08a");
+  }
+
+  /* ----- foreground plants, bunting ----- */
+  const fp = (x, y, s, leaves) => {
+    const grp = g(L.fg, { filter: "url(#shadow)" });
+    leaves.forEach(([rot, c], i) => {
+      const lf = g(grp);
+      cut(lf, "path", { d: "M0,0 C-22,-30 -22,-70 0,-100 C22,-70 22,-30 0,0 Z", fill: c });
+      el("path", { d: "M0,-4 L0,-92", stroke: "#256f31", "stroke-width": 1.6 }, lf);
+      amb.push(t => lf.setAttribute("transform", `translate(${x},${y}) rotate(${rot + Math.sin(t * 1.1 + i + x) * 2.5}) scale(${s})`));
+    });
+  };
+  fp(46, 612, .85, [[-52, "#2f8a3c"], [-22, "#3a9c47"], [8, "#2f8a3c"], [34, "#3a9c47"]]);
+  fp(1236, 612, .85, [[-34, "#3a9c47"], [-6, "#2f8a3c"], [22, "#3a9c47"], [52, "#2f8a3c"]]);
+
+  const swag = (x0, y0, cx, cy, x1, y1, n) => {
+    const grp = g(L.fg, { filter: "url(#shadow)" });
+    el("path", { d: `M${x0},${y0} Q${cx},${cy} ${x1},${y1}`, stroke: "#5a3a1e", "stroke-width": 3, fill: "none" }, grp);
+    for (let i = 0; i < n; i++) {
+      const t = (i + .5) / n;
+      const p = { x: (1-t)*(1-t)*x0 + 2*(1-t)*t*cx + t*t*x1, y: (1-t)*(1-t)*y0 + 2*(1-t)*t*cy + t*t*y1 };
+      const f = g(grp, { transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` }), inner = g(f);
+      const white = i % 2 === 1;
+      cut(inner, "path", { d: "M-17,0 L17,0 L0,48 Z", fill: white ? "#fff8e8" : RED });
+      if (white) { el("rect", { x: -2.5, y: 6, width: 5, height: 17, fill: RED }, inner); el("rect", { x: -7.5, y: 11.5, width: 15, height: 5, fill: RED }, inner); }
+      amb.push(tt => inner.setAttribute("transform", `rotate(${(Math.sin(tt * 1.6 + i) * 4).toFixed(1)})`));
+    }
+  };
+  swag(-10, 6, 320, 92, 640, 10, 13);
+  swag(640, 10, 960, 92, 1290, 6, 13);
+
+  /* ----- ngatu band + caption card ----- */
+  el("rect", { x: 0, y: 600, width: W, height: 120, fill: "url(#ngatu)" }, L.band);
+  el("rect", { x: 0, y: 600, width: W, height: 8, fill: "#241309" }, L.band);
+  let tri = ""; for (let x = 0; x < W; x += 24) tri += `M${x},608 L${x + 12},598 L${x + 24},608 Z `;
+  el("path", { d: tri, fill: "#efdcb4" }, L.band);
+  const card = g(L.band, { filter: "url(#shadow)" });
+  cut(card, "rect", { x: 80, y: 616, width: 1120, height: 90, rx: 14, fill: CREAM });
+  el("rect", { x: 89, y: 625, width: 1102, height: 72, rx: 9, fill: "none", stroke: "#b98a5a", "stroke-width": 1.6, "stroke-dasharray": "6 5" }, card);
+  flower(card, 100, 636, 12, "#fffaf0", "#ffcf40"); flower(card, 1180, 636, 12, "#fffaf0", "#ffcf40");
+  flower(card, 100, 686, 12, "#e8283c", "#ffd23f"); flower(card, 1180, 686, 12, "#e8283c", "#ffd23f");
+  capText = el("text", { class: "ctxt", "text-anchor": "middle", "font-size": 30 }, L.band);
+  capMeas = el("text", { class: "ctxt", opacity: 0, x: 0, y: -100, "font-size": 30 }, L.band);
+
+  // paper grain, painted once into a tiny canvas
+  const cv = document.createElement("canvas"); cv.width = cv.height = 160;
+  const cx = cv.getContext("2d"), im = cx.createImageData(160, 160);
+  for (let i = 0; i < im.data.length; i += 4) {
+    const v = Math.random();
+    im.data[i] = 90; im.data[i + 1] = 60; im.data[i + 2] = 30; im.data[i + 3] = v > .55 ? Math.floor((v - .55) * 70) : 0;
+  }
+  cx.putImageData(im, 0, 0);
+  const oldGrain = svg.querySelector("#grainP"); if (oldGrain) oldGrain.remove();
+  const grain = el("pattern", { id: "grainP", width: 160, height: 160, patternUnits: "userSpaceOnUse" }, svg.querySelector("defs"));
+  el("image", { href: cv.toDataURL(), width: 160, height: 160 }, grain);
+  const gr = el("rect", { x: 0, y: 0, width: W, height: H, fill: "url(#grainP)", "pointer-events": "none" }, svg);
+  gr.setAttribute("id", "grainRect");
+}
+
+/* =====================================================================
+   OVERLAYS: title, flash, verse scroll
+   ===================================================================== */
+async function showTitle() {
+  const grp = g(L.over, { filter: "url(#shadow)" });
+  const pos = g(grp, { transform: "translate(640,-400)" });
+  el("line", { x1: -250, y1: -900, x2: -250, y2: -100, stroke: "#6b4423", "stroke-width": 4 }, pos);
+  el("line", { x1:  250, y1: -900, x2:  250, y2: -100, stroke: "#6b4423", "stroke-width": 4 }, pos);
+  cut(pos, "rect", { x: -405, y: -115, width: 810, height: 225, rx: 16, fill: CREAM, stroke: "url(#ngatu)", "stroke-width": 24 });
+  el("rect", { x: -380, y: -90, width: 760, height: 175, rx: 8, fill: "none", stroke: "#b98a5a", "stroke-width": 1.8, "stroke-dasharray": "7 5" }, pos);
+  const t1 = el("text", { class: "ttxt", "text-anchor": "middle", x: 0, y: -18, "font-size": 58 }, pos); t1.textContent = "The Memory Verse";
+  const t2 = el("text", { class: "ttxt", "text-anchor": "middle", x: 0, y: 55, "font-size": 58, fill: RED, style: "fill:#c8102e" }, pos); t2.textContent = "Under the Ha’amonga";
+  flower(pos, -350, -60, 16, "#fffaf0", "#ffcf40"); flower(pos, 350, -60, 16, "#fffaf0", "#ffcf40");
+  const setY = y => pos.setAttribute("transform", `translate(640,${y.toFixed(1)})`);
+  await anim(1200, e => setY(lerp(-400, 300, e)), E.bounce);
+  await wait(3300);
+  await anim(900, e => setY(lerp(300, -420, e)), E.io);
+  grp.remove();
+}
+async function flash() {
+  const r = el("rect", { x: 0, y: 0, width: W, height: H, fill: "#fff", opacity: 0 }, L.over);
+  await anim(90, e => r.setAttribute("opacity", e * .95), E.lin);
+  await anim(380, e => r.setAttribute("opacity", .95 * (1 - e)), E.lin);
+  r.remove();
+}
+async function showVerse() {
+  const dim = el("rect", { x: 0, y: 0, width: W, height: H, fill: "#1b0f08", opacity: 0 }, L.over);
+  const grp = g(L.over, { filter: "url(#shadow)" });
+  const pos = g(grp, { transform: "translate(640,215) scale(0.05)" });
+  cut(pos, "rect", { x: -395, y: -150, width: 790, height: 300, rx: 14, fill: CREAM });
+  el("rect", { x: -395, y: -150, width: 790, height: 26, rx: 6, fill: "url(#ngatu)" }, pos);
+  el("rect", { x: -395, y: 124, width: 790, height: 26, rx: 6, fill: "url(#ngatu)" }, pos);
+  const head = el("text", { class: "ctxt", "text-anchor": "middle", x: 0, y: -96, "font-size": 26, style: "font-weight:800;fill:#c8102e" }, pos);
+  head.textContent = "The Memory Verse";
+  let fs = 42, lines;
+  for (; fs >= 24; fs -= 2) {
+    capMeas.setAttribute("style", "font-weight:700;font-style:normal"); capMeas.setAttribute("font-size", fs);
+    lines = wrapLines(capMeas, MEMORY_VERSE, 700);
+    if (lines.length * fs * 1.25 <= (MEMORY_VERSE_REF ? 150 : 175)) break;
+  }
+  const lh = fs * 1.25, mid = MEMORY_VERSE_REF ? 6 : 14, y0 = mid - (lines.length - 1) * lh / 2 + fs * .34;
+  const vt = el("text", { class: "ctxt", "text-anchor": "middle", "font-size": fs, style: "font-weight:700" }, pos);
+  lines.forEach((ln, i) => { const ts = el("tspan", { x: 0, y: (y0 + i * lh).toFixed(1) }, vt); ts.textContent = ln; });
+  if (MEMORY_VERSE_REF) {
+    const rt = el("text", { class: "ctxt", "text-anchor": "middle", x: 0, y: 108, "font-size": 24, style: "font-weight:800;font-style:italic;fill:#7a4a2a" }, pos);
+    rt.textContent = MEMORY_VERSE_REF;
+  }
+  L.glow.setAttribute("opacity", 0);
+  await par(anim(450, e => dim.setAttribute("opacity", e * .45), E.lin),
+            anim(650, e => pos.setAttribute("transform", `translate(640,215) scale(${lerp(.05, 1, e).toFixed(3)})`), E.back),
+            anim(650, e => L.glow.setAttribute("opacity", e * .8), E.lin));
+  await wait(clamp(3600 + MEMORY_VERSE.length * 80, 5200, 14000));
+  await par(anim(450, e => dim.setAttribute("opacity", .45 * (1 - e)), E.lin),
+            anim(450, e => pos.setAttribute("transform", `translate(640,215) scale(${lerp(1, .05, e).toFixed(3)})`), E.io),
+            anim(450, e => L.glow.setAttribute("opacity", .8 * (1 - e)), E.lin));
+  dim.remove(); grp.remove();
+}
+
+/* =====================================================================
+   THE STORY
+   ===================================================================== */
+function crowdLayout(lineup, spread) {
+  const n = lineup.length;
+  return lineup.map((a, i) => {
+    let x;
+    if (!spread) x = n === 1 ? 640 : 505 + 275 * i / (n - 1);
+    else { const half = Math.ceil(n / 2); x = i < half ? 490 + 95 * i / Math.max(1, half - 1) : 700 + 95 * (i - half) / Math.max(1, n - half - 1); }
+    return { a, x, y: i % 2 === 0 ? 588 : 575 };
+  });
+}
+async function shuffle(lineup, ms = 800, spread = false, skip = null) {
+  const lay = crowdLayout(lineup, spread);
+  await Promise.all(lay.filter(o => o.a !== skip).map(o => walk(o.a, o.x, o.y, ms, { face: false, hopH: 4 })));
+  lay.forEach(o => { o.a.flip = o.x < 640 ? 1 : -1; });
+}
+const crowdDown = a => to(a, { crouch: 1, bend: a.isPerson ? 34 : 0 }, 350, E.back);
+const crowdUp   = a => to(a, { crouch: 0, bend: 0 }, 420, E.back);
+const nameList = arr => arr.length === 1 ? arr[0] : arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+
+async function story() {
+  buildScene();
+  setCaption("");
+  const skin = (s, d) => ({ skin: s, skinD: d });
+  const kid   = new Person({ ...skin("#b4713f", "#8f5429"), hair: "#1b1310", top: RED, topAccent: "#fff3d6", skirt: "#23284a", hem: RED, mat: "#dcbc7a", headR: 14, flower: true, sc: .9 });
+  const adult = new Person({ ...skin("#8f5732", "#6f4020"), hair: "#1b1310", top: "#fbf6ea", topAccent: RED, skirt: "#1c1c22", hem: RED, mat: "#d3ae6c", headR: 11.5, sc: 1.5 });
+  const gma   = new Person({ ...skin("#9c6139", "#7a4527"), hair: "#e6e2da", hairStyle: "bun", top: RED, topAccent: "#fff3d6", skirt: "#7d1530", hem: "#fff3d6", mat: "#d9b878", headR: 11, flower: true, sc: 1.28, bend0: 8 });
+  const gpa   = new Person({ ...skin("#8b5331", "#6b3d20"), hair: "#dedad2", glasses: true, top: "#ffffff", topAccent: "#3a2418", skirt: "#18181c", hem: RED, mat: "#b88c4c", headR: 11.5, sc: 1.32, bend0: 8 });
+  const mk = (b, o) => new Actor(b(), o);
+  const A = {
+    chicken: mk(buildChicken, { h: 58, sc: 1,   hopH: 6, stepLen: 22, sound: "Bok bok!", nm: "chicken" }),
+    cat:     mk(buildCat,     { h: 46, sc: 1,   hopH: 5, stepLen: 22, sound: "Meow!",    nm: "cat" }),
+    dog:     mk(buildDog,     { h: 48, sc: 1,   hopH: 6, stepLen: 24, sound: "Woof!",    nm: "dog" }),
+    lizard:  mk(buildLizard,  { h: 20, sc: 1.2, hopH: 3, stepLen: 18, sound: "Chirp!",   nm: "lizard" }),
+    pig:     mk(buildPig,     { h: 48, sc: 1,   hopH: 5, stepLen: 24, sound: "Oink!",    nm: "pig" }),
+    horse:   mk(buildHorse,   { h: 104, sc: 1,  hopH: 7, stepLen: 34, sound: "Neigh!",   nm: "horse" }),
+    mouse:   mk(buildMouse,   { h: 22, sc: 1.5, hopH: 4, stepLen: 16, sound: "Squeak!",  nm: "mouse" })
+  };
+
+  await wait(500);
+  await showTitle();
+  await wait(300);
+
+  /* --- 1. arrival --- */
+  adult.put(L.front); kid.put(L.crowd);
+  adult.x = -90; adult.y = 592; kid.x = -190; kid.y = 590;
+  await par(narrate("One afternoon in Tonga, a little kid and an adult went to see the Ha’amonga.", { ms: 5200 }),
+            walk(adult, 235, 592, 4800), walk(kid, 300, 590, 4800));
+
+  /* --- 2. photo --- */
+  await par(narrate("Adult: “Hey! Fakamolemole, can you stand by the rock? I want to take a picture of you with the Ha’amonga.”", { ms: 6600 }),
+            talk(adult, 6200),
+            (async () => { await wait(800); await to(adult, { aR: -150, lR: 1 }, 500); await wait(900); await armsRest(adult, 400); })(),
+            (async () => { await wait(2200); await walk(kid, 330, 592, 1700); })(),
+            (async () => { await wait(3600); await walk(adult, 150, 592, 1800, { face: false }); })());
+  kid.flip = 1; adult.flip = 1;
+
+  await par(narrate("Little kid: “Yes!”", { ms: 1900 }),
+            say(kid, "Yes!", 1400),
+            to(kid, { aR: -160, aL: 160 }, 500, E.back));
+  adult.cam = 1;
+  await par(to(adult, { aR: -169, aL: 169, lR: .59, lL: .59 }, 700), wait(1500));
+  await flash();
+  await par(to(adult, { aR: -5, aL: 5, lR: 1, lL: 1 }, 400), armsRest(kid, 400));
+  adult.cam = 0;
+  await wait(500);
+
+  /* --- 3. the kid spots the verse --- */
+  const sp = L.sparks;
+  anim(500, e => sp.forEach(p => p.on = e), E.back);
+  await par(narrate("Then the little kid looked down. “Look! There’s a memory verse on the bottom of the stone!”", { ms: 6200 }),
+            to(kid, { bend: 30, aR: -78, lR: 1 }, 700),
+            talk(kid, 4800),
+            (async () => { await wait(1500); await say(kid, "Look!", 2200); })());
+
+  /* --- 4. grandparents --- */
+  gma.put(L.front); gpa.put(L.front);
+  gma.flip = -1; gpa.flip = -1; gma.x = 1390; gma.y = 592; gpa.x = 1470; gpa.y = 592;
+  await par(narrate("Grandma and Grandpa came over to read it. They tried to bend down, but they couldn’t.", { ms: 7000 }),
+            walk(gma, 990, 592, 3800), walk(gpa, 1075, 592, 3900),
+            (async () => {
+              await wait(4200);
+              await par(to(gma, { bend: 34 }, 700), to(gpa, { bend: 34 }, 800));
+              await wait(250);
+              await par(to(gma, { bend: 8 }, 280, E.back), to(gpa, { bend: 8 }, 280, E.back));
+            })());
+  await par(narrate("“Ow! My back!” said Grandma.", { ms: 2600 }),
+            say(gma, "Ow! My back!", 2000), to(gma, { aL: 32, lL: .9, bend: 12 }, 400), shake([gma], 700));
+  await par(narrate("“Ow! My back!” said Grandpa.", { ms: 2600 }),
+            say(gpa, "Ow! My back!", 2000), to(gpa, { aL: 32, lL: .9, bend: 12 }, 400), shake([gpa], 700));
+
+  /* --- 5. kid volunteers --- */
+  await par(narrate("“Don’t worry,” said the little kid. “I’ll go under the Ha’amonga and read it for you!”", { ms: 6400 }),
+            to(kid, { bend: 0, aR: -150, aL: 5 }, 500), talk(kid, 5500),
+            to(gma, { bend: 8, aL: 5, lL: 1 }, 500), to(gpa, { bend: 8, aL: 5, lL: 1 }, 500));
+  await armsRest(kid, 300);
+
+  /* --- 6. kid goes under --- */
+  await par(narrate("But the words were small and the little kid couldn’t read them alone.", { ms: 4300 }),
+            walk(kid, 640, 588, 3200),
+            (async () => { await wait(3000); await crowdDown(kid); say(kid, "?", 1400); anim(300, e => sp.forEach(p => p.on = 1 - e), E.lin); })());
+  await narrate("The little kid went under the Ha’amonga.", { bold: true, ms: 2400 });
+
+  /* --- 7. the animals --- */
+  const lineup = [kid];
+  const arrivals = [kid];
+  const roster = [
+    ["chicken", "R", "a chicken"], ["cat", "L", "a cat"], ["dog", "R", "a dog"],
+    ["lizard", "L", "a lizard"], ["pig", "R", "a pig"], ["horse", "L", "a horse"]
+  ];
+  for (const [key, side, art] of roster) {
+    const an = A[key];
+    an.put(L.crowd); an.flip = side === "L" ? 1 : -1;
+    an.x = side === "L" ? -110 : 1390; an.y = 588;
+    const stopX = side === "L" ? 300 : 950;
+    await par(narrate(`Then ${art} came along. “${an.sound}”`, { ms: 3400 }),
+              walk(an, stopX, 588, 2800),
+              (async () => { await wait(1700); await say(an, an.sound, 1400); })());
+    if (key === "chicken") {
+      await par(narrate("“Come with me, chicken. Let’s be friends!”", { ms: 3400 }),
+                (async () => { await crowdUp(kid); await par(waveLoop(kid, 2200), talk(kid, 2200)); await crowdDown(kid); })());
+    }
+    if (side === "L") lineup.unshift(an); else lineup.push(an);
+    arrivals.push(an);
+    const newestFirst = [...arrivals].reverse().map(a => a === kid ? "the little kid" : "the " + a.nm);
+    const rest = shuffle(lineup, 1500, false, an);
+    await par(narrate(`So ${nameList(newestFirst)} went under the Ha’amonga.`, { ms: readTime(`So ${nameList(newestFirst)} went under the Ha’amonga.`) }),
+              (async () => {
+                const lay = crowdLayout(lineup, false).find(o => o.a === an);
+                await walk(an, lay.x, lay.y, 2400, { hopH: an.hopH });
+                an.flip = an.x < 640 ? 1 : -1;
+                await crowdDown(an);
+              })(),
+              rest);
+    if (key !== "chicken") {
+      const order = [...arrivals].reverse().filter(a => a.sound);
+      const line = order.map(a => a.sound).join(" ");
+      setCaption(line, { italic: true });
+      for (let i = 0; i < order.length; i++) { say(order[i], order[i].sound, 650, { lift: (i % 2) * 30, fs: 22 }); await wait(360); }
+      await wait(1100);
+    } else {
+      await wait(400);
+    }
+  }
+
+  /* --- 8. crowded --- */
+  const crowd = [...lineup];
+  await par(narrate("It was crowded under there, and nobody could see the memory verse!", { ms: 5000 }),
+            shake(crowd, 3400),
+            (async () => { await wait(500); say(kid, "?", 1800); say(A.pig, "?", 1800, { lift: 26 }); await wait(500); say(A.dog, "?", 1800, { lift: 12 }); })());
+
+  /* --- 9. the mouse --- */
+  const mouse = A.mouse;
+  mouse.put(L.crowd); mouse.flip = 1; mouse.x = -100; mouse.y = 590;
+  await par(narrate("Then a tiny mouse came along. “Squeak!”", { ms: 3400 }),
+            walk(mouse, 400, 590, 2800),
+            (async () => { await wait(1700); await say(mouse, "Squeak!", 1400); })());
+  await par(narrate("“Everybody, stand up!” squeaked the mouse.", { ms: 3000 }),
+            say(mouse, "Everybody, stand up!", 2400), hopInPlace(mouse, 8, 3, 900));
+  await par(narrate("They all stood up.", { ms: 2200 }),
+            ...crowd.map(crowdUp), shuffle(lineup, 1000, true));
+  await par(...crowd.map((a, i) => (async () => { await wait(i * 60); await hopInPlace(a, 10, 1, 380); })()));
+
+  /* --- 10. the mouse reads --- */
+  mouse.put(L.front);
+  const stage1 = narrate("They all stood up. The mouse climbed to the very front, looked at the stone, and read the memory verse out loud:", { ms: 6800 });
+  await par(stage1,
+            (async () => {
+              await wait(300);
+              await jump(mouse, 470, 592, 700, 26);
+              await jump(mouse, 560, 592, 800, 40);
+              await jump(mouse, 640, 596, 800, 26);
+              mouse.flip = 1;
+              await to(mouse, { rot: -6 }, 300);
+            })());
+  await showVerse();
+  mouse.rot = 0;
+
+  /* --- 11. thanks --- */
+  await par(narrate("Grandma and Grandpa smiled. “Mālō! Thank you!”", { ms: 4400 }),
+            (async () => { gma.smile = 1; gpa.smile = 1; await par(hopInPlace(gma, 12, 2, 700), hopInPlace(gpa, 12, 2, 800)); })(),
+            say(gma, "Mālō!", 2000), say(gpa, "Thank you!", 2000, { lift: 4 }));
+  await par(narrate("“Mālō!” said the little kid.", { ms: 2600 }),
+            say(kid, "Mālō!", 1800), hopInPlace(kid, 14, 2, 600));
+
+  /* --- 12. mouse bows & leaves --- */
+  await par(narrate("The mouse bowed down, said “Squeak!”, and ran away.", { ms: 4800 }),
+            (async () => {
+              await to(mouse, { rot: 38 }, 450);
+              say(mouse, "Squeak!", 1100);
+              await wait(900);
+              await to(mouse, { rot: 0 }, 300);
+              mouse.flip = -1;
+              await walk(mouse, -120, 596, 1500, { hopH: 8 });
+            })());
+
+  /* --- 13. goodbye chat --- */
+  kid.put(L.front);
+  gma.smile = 0; gpa.smile = 0;
+  await par(narrate("Adult: “Fefe hake?”", { ms: 2800 }),
+            walk(adult, 870, 592, 3200),
+            walk(kid, 790, 594, 2400, { hopH: 4 }),
+            to(kid, { crouch: 0, bend: 0 }, 300),
+            (async () => { await wait(2300); await say(adult, "Fefe hake?", 1500); })());
+  adult.flip = 1;
+  await par(narrate("Old couple: “Sai pe!”", { ms: 2400 }),
+            say(gma, "Sai pe!", 1800), say(gpa, "Sai pe!", 1800, { lift: 4 }), talk(gma, 1500), talk(gpa, 1500));
+  adult.flip = -1; kid.flip = 1;
+  await par(narrate("Adult: “Mālō for taking a picture with me earlier.”", { ms: 4200 }),
+            talk(adult, 3000), say(adult, "Mālō!", 2000));
+  await par(narrate("Little kid: “You’re welcome!”", { ms: 2800 }),
+            say(kid, "You’re welcome!", 2000), hopInPlace(kid, 12, 2, 600));
+  adult.flip = 1;
+  await par(narrate("Adult: “Okay, I’d better go. Bye!”", { ms: 3200 }),
+            say(adult, "Bye!", 2200), waveLoop(adult, 2200));
+  await par(narrate("Old couple: “Bye!”", { ms: 2400 }),
+            say(gma, "Bye!", 1800), say(gpa, "Bye!", 1800, { lift: 4 }), waveLoop(gma, 1800), waveLoop(gpa, 1800));
+  await par(narrate("Little kid: “Bye!”", { ms: 3600 }),
+            say(kid, "Bye!", 1800), waveLoop(kid, 2000),
+            (async () => { await wait(300); await walk(adult, -140, 592, 3300); })());
+  await wait(400);
+
+  /* --- 14. the end --- */
+  setCaption("The End", { bold: true });
+  await par(...crowd.map((a, i) => (async () => { await wait(i * 90); await hopInPlace(a, 12, 2, 600); })()),
+            waveLoop(kid, 1800), waveLoop(gma, 1800), waveLoop(gpa, 1800));
+  await wait(1400);
+}
+
+async function start() {
+  btn.classList.remove("show");
+  try { await story(); } catch (err) { console.error(err); }
+  btn.classList.add("show");
+}
+btn.addEventListener("click", start);
+
+requestAnimationFrame(loop);
+start();
+})();
+</script>
+</body>
+</html>
