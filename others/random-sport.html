@@ -77,16 +77,24 @@
   canvas { width: 100%; height: 100%; display: block; transition: filter .12s; }
   .stage.spinning canvas { filter: blur(1.6px) saturate(1.25); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .chips li {
-    padding: 6px 14px;
-    border: 2px solid var(--ink);
-    border-radius: 999px;
+  .chips .chip {
+    font-family: var(--body);
     font-size: 14px;
     font-weight: 600;
     letter-spacing: .04em;
+    text-transform: none;
+    color: var(--ink);
+    background: transparent;
+    padding: 6px 14px;
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: none;
     transition: background .15s, color .15s;
   }
-  .chips li.on { background: var(--ink); color: var(--bg); }
+  .chips .chip:hover:not(:disabled):not(.on) { background: rgba(19, 33, 44, .1); }
+  .chips .chip:active:not(:disabled) { transform: none; box-shadow: none; }
+  .chips .chip.on { background: var(--ink); color: var(--bg); }
+  .chips .chip:disabled { opacity: .6; cursor: progress; }
 </style>
 </head>
 <body>
@@ -1349,18 +1357,29 @@
   const chipsEl = document.getElementById('chips');
   const frame = document.getElementById('frame');
   const btn = document.getElementById('random');
-  const chips = scenes.map(sc => {
-    const li = document.createElement('li');
-    li.textContent = sc.name;
-    chipsEl.appendChild(li);
-    return li;
-  });
-
   let cur = 0, start = performance.now(), busy = false;
+  const chips = scenes.map((sc, i) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = sc.name;
+    b.addEventListener('click', () => { if (!busy && i !== cur) show(i, true); });
+    li.appendChild(b);
+    chipsEl.appendChild(li);
+    return b;
+  });
+  const setBusy = v => {
+    busy = v; btn.disabled = v;
+    chips.forEach(c => { c.disabled = v; });
+  };
   function show(i, flip) {
     cur = i; start = performance.now();
     nameEl.textContent = scenes[i].name;
-    chips.forEach((c, j) => c.classList.toggle('on', j === i));
+    chips.forEach((c, j) => {
+      c.classList.toggle('on', j === i);
+      c.setAttribute('aria-pressed', j === i ? 'true' : 'false');
+    });
     if (flip && cv.animate) {
       cv.animate(
         [{ transform: 'translateY(-10px)', opacity: .55 }, { transform: 'none', opacity: 1 }],
@@ -1372,7 +1391,7 @@
 
   btn.addEventListener('click', () => {
     if (busy) return;
-    busy = true; btn.disabled = true;
+    setBusy(true);
     let target;
     do { target = Math.floor(Math.random() * N); } while (target === cur);
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1386,7 +1405,7 @@
         setTimeout(tick, 60 + Math.pow(i / (steps - 1), 2.2) * 260);
       } else {
         frame.classList.remove('spinning');
-        busy = false; btn.disabled = false;
+        setBusy(false);
       }
     };
     tick();
