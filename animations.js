@@ -108,6 +108,7 @@ window.COLLECTIONS = [
     accent: "#cdb4db",
     items: [
       { file: "animation-style-showcase.html", title: "Animation Style Showcase", tag: "10 styles · 1 scene", thumb: "thumbs/animation-style-showcase.jpg" },
+      { file: "random-sport.html", title: "Random Sport", tag: "14 sports · tap Random", thumb: "thumbs/random-sport.jpg" },
       // { file: "my-animation.html", title: "My Animation", author: "Name" },
     ]
   }
